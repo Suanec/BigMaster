@@ -1,0 +1,56 @@
+val srcPath = """E:\222Shares\netflix"""
+val trainingSetPath = srcPath + """\download\training_set"""
+val rstPath = """D:\betn\BigPaper\wsp\data\netflixRst"""
+val netflixDataFile = srcPath + "\\allData.txt"
+val srcRdd = sc.textFile(netflixDataFile, 4) /// count = 100480507
+val originSrcRdd = sc.textFile(trainingSetPath + "\\*", 4) /// count = 61939690
+val rdd = originSrcRdd.map(_.split(',')).filter(_.size > 2) /// count = 67928412
+val itemSrcRdd = srcRdd.map(x => x.split(',').head -> x).groupByKey /// count means movies' number = 17770
+val userSrcRdd = srcRdd.map(x => x.split(',')(1)).distinct /// count = 480189
+
+
+// System.setProperty("hadoop.home.dir", """D:\betn\SPARK\hadoop-2.7.1""")
+
+val splitsRdd = srcRdd.randomSplit(Array(0.02,0.98)).head
+val ratings = splitsRdd.map(_.split(',') match { case Array(user, item, rate, date) =>
+  org.apache.spark.mllib.recommendation.Rating(user.toInt, item.toInt, rate.toDouble)
+})/// MAE : 0.31 MSE : 0.36 RMSE : 0.60
+
+val alsTestPath = """D:\betn\SPARK\spark-2.0.0-bin-hadoop2.7\data/mllib/als/test.data"""
+val data = sc.textFile(alsTestPath)
+val ratings = data.map(_.split(',') match { case Array(user, item, rate) =>
+  org.apache.spark.mllib.recommendation.Rating(user.toInt, item.toInt, rate.toDouble)
+}) /// 1e-6
+
+def getRatesAndPreds( _ratings : org.apache.spark.rdd.RDD[org.apache.spark.mllib.recommendation.Rating], 
+  _rank : Int = 5, 
+  _numIterations : Int = 10, 
+  _lambda : Double = 0.01) = {
+  import org.apache.spark.mllib.recommendation.ALS
+  import org.apache.spark.mllib.recommendation.MatrixFactorizationModel
+  import org.apache.spark.mllib.recommendation.Rating
+
+  // Build the recommendation model using ALS
+  println("training Start!")
+  val model = ALS.train(_ratings, _rank, _numIterations, _lambda)
+  println("training Done!")
+
+  // Evaluate the model on rating data
+  val usersProducts = _ratings.map { case Rating(user, product, rate) =>
+    (user, product)
+  }
+  val predictions =
+    model.predict(usersProducts).map { case Rating(user, product, rate) =>
+      ((user, product), rate)
+    }
+  val ratesAndPreds = _ratings.map { case Rating(user, product, rate) =>
+    ((user, product), rate)
+  }.join(predictions)
+  ratesAndPreds
+}
+val ratesAndPreds = getRatesAndPreds(ratings).map(_._2)
+  val MSE = ratesAndPreds.map { case ((user, product), (r1, r2)) =>
+    val err = (r1 - r2)
+    err * err
+  }.mean()
+  println("Mean Squared Error = " + MSE)

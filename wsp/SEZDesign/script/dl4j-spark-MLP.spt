@@ -1,0 +1,91 @@
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.deeplearning4j.datasets.iterator.impl.MnistDataSetIterator;
+import org.deeplearning4j.eval.Evaluation;
+import org.deeplearning4j.nn.api.OptimizationAlgorithm;
+import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
+import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
+import org.deeplearning4j.nn.conf.Updater;
+import org.deeplearning4j.nn.conf.layers.DenseLayer;
+import org.deeplearning4j.nn.conf.layers.OutputLayer;
+import org.deeplearning4j.nn.weights.WeightInit;
+import org.deeplearning4j.spark.api.TrainingMaster;
+import org.deeplearning4j.spark.impl.multilayer.SparkDl4jMultiLayer;
+import org.deeplearning4j.spark.impl.paramavg.ParameterAveragingTrainingMaster;
+import org.nd4j.linalg.activations.Activation;
+import org.nd4j.linalg.dataset.DataSet;
+import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
+import org.nd4j.linalg.lossfunctions.LossFunctions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+
+val useSparkLocal = true;
+
+val batchSizePerWorker = 16;
+
+val numEpochs = 15;
+
+//Load the data into memory then parallelize
+//This isn't a good approach in general - but is simple to use for this example
+val iterTrain = new MnistDataSetIterator(batchSizePerWorker, true, 12345);
+val iterTest = new MnistDataSetIterator(batchSizePerWorker, true, 12345);
+val  trainDataList = new ArrayList<>();
+val  testDataList = new ArrayList<>();
+while (iterTrain.hasNext()) {
+    trainDataList.add(iterTrain.next());
+}
+while (iterTest.hasNext()) {
+    testDataList.add(iterTest.next());
+}
+
+val trainData = sc.parallelize(trainDataList);
+val testData = sc.parallelize(testDataList);
+
+
+//----------------------------------
+//Create network configuration and conduct network training
+val conf = new NeuralNetConfiguration.Builder()
+    .seed(12345)
+    .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
+    .activation(Activation.LEAKYRELU)
+    .weightInit(WeightInit.XAVIER)
+    .learningRate(0.02)
+    .updater(Updater.NESTEROVS).momentum(0.9)
+    .regularization(true).l2(1e-4)
+    .list()
+    .layer(0, new DenseLayer.Builder().nIn(28 * 28).nOut(500).build())
+    .layer(1, new DenseLayer.Builder().nIn(500).nOut(100).build())
+    .layer(2, new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
+        .activation(Activation.SOFTMAX).nIn(100).nOut(10).build())
+    .pretrain(false).backprop(true)
+    .build();
+
+//Configuration for Spark training: see http://deeplearning4j.org/spark for explanation of these configuration options
+val tm = new ParameterAveragingTrainingMaster.Builder(batchSizePerWorker)    //Each DataSet object: contains (by default) 32 examples
+    .averagingFrequency(5)
+    .workerPrefetchNumBatches(2)            //Async prefetching: 2 examples per worker
+    .batchSizePerWorker(batchSizePerWorker)
+    .build();
+
+//Create the Spark network
+val sparkNet = new SparkDl4jMultiLayer(sc, conf, tm);
+
+//Execute training:
+for (i <- (0 util numEpochs)) {
+    sparkNet.fit(trainData);
+    println(s"Completed Epoch {${i}}");
+}
+
+//Perform evaluation (distributed)
+val evaluation = sparkNet.evaluate(testData);
+println("***** Evaluation *****");
+println(evaluation.stats());
+
+//Delete the temp training files, now that we are done with them
+tm.deleteTempFiles(sc);
+
+println("***** Example Complete *****");
