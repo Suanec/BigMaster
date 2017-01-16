@@ -1,0 +1,824 @@
+scala -cp "D:\betn\Scala\ScalaSpace\breezeLib\target\scala-2.10\breezeLib-assembly-1.0.jar"
+
+import scala.math.exp
+/**
+ * Created by suanec on 2016/4/4 : 20:05.
+ */
+object util {
+  /// MTrick 单个元素类型。
+  type SWord = (Int, Int, Double)
+  type SElem = (Int, Double)
+  type SDoc = Array[SElem]
+  type SVector = Array[Double]
+
+  def sigmoid( z : Double ) : Double = 1d / ( 1 + exp(-z) )
+
+  def tanh( z : Double ) : Double = {
+    val z1 = exp(-z)
+    val z2 = exp(z)
+    (z2 - z1)/(z2 + z1)
+  }
+
+  def Dif_sigmoid( z : Double ) : Double = sigmoid(z) / ( 1 - sigmoid(z) )
+
+  def Dif_tanh( z : Double ) : Double = 1 - tanh(z) * tanh(z)
+
+  def SVectorPlus ( _a : SVector, _b : SVector ) : SVector = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i) + _b(i)
+    }.toArray
+  }
+
+  def SVectorSub( _a : SVector, _b : SVector ) : SVector = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i) - _b(i)
+    }.toArray
+  }
+
+  def SVectorMul( _a : SVector, _b : SVector ) : Double = {
+    require(_a.size == _b.size)
+    var sum = 0d
+    (0 until _a.size).map{
+      i =>
+        sum += _a(i) * _b(i)
+    }
+    sum
+  }
+
+  def SVectorDotMul( _a : SVector, _b : SVector ) : SVector = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i) * _b(i)
+    }.toArray
+  }
+
+  def SDocSub( _a : SDoc, _b : SDoc ) : SDoc = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i)._1 -> (_a(i)._2 - _b(i)._2)
+    }.toArray
+  }
+
+  def SDocDotMul( _a : SDoc, _b : SDoc ) : SDoc = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i)._1 -> _a(i)._2 * _b(i)._2
+    }.toArray
+  }
+
+  def SDoc2SVector( _doc : SDoc, _line : SVector ) = {
+    require( _doc.last._1 < _line.size+1 )
+    _doc.map( x => _line(x._1) = x._2 )
+  }
+
+}
+
+import util._
+
+import scala.util.Random
+/**
+ * Created by suanec on 2016/4/4 : 18:36.
+ */
+class Matrix( private var m_cols : Int,
+               private var m_rows : Int,
+               private var m_data : Array[Array[Double]]) {
+  def this() = this(0,0,null)
+  def this( _col : Int, _row : Int ){
+    this(_col, _row, null)
+    m_data = new Array[Array[Double]](_col)
+    m_data.map( x => new Array[Double](_row))
+  }
+  def this( _data : Array[Array[Double]] ) = {
+    this(_data.size, _data.map( line => line.size ).max , _data)
+  }
+  def this( _col : Int, _row : Int, _rand : Long ) = {
+    this(_col,_row)
+    val rand = new Random(_rand)
+    val tData = new Array[Array[Double]](_col).map( line => new Array[Double](_row).map( x => rand.nextDouble() ) )
+    m_data = tData
+  }
+  def getCols() = m_cols
+  def getRows() = m_rows
+  def size() = m_cols -> m_rows
+  def getElem( _y : Int, _x : Int ) = {
+    require(_x >= 0 && _x < m_rows && _y >= 0 && _y < m_cols )
+    m_data(_y)(_x)
+  }
+  def getValue() = m_data
+  def updateElem( _y : Int, _x : Int, _elem : Double ) : Double = {
+    require(_x >= 0 && _x < m_rows && _y >= 0 && _y < m_cols)
+    m_data(_y)(_x) = _elem
+    m_data(_y)(_x)
+  }
+  def getCol( _y : Int ) = m_data(_y)
+  def MulRow( _line : SVector ) : SVector = {
+    require( m_rows == _line.size )
+    val res = new Array[Double](m_cols)
+    (0 until m_cols).map{
+      i =>
+        val tmp = m_data(i)
+        var tmpSum = 0d
+        (0 until tmp.size).map{
+          j =>
+            tmpSum += _line(j) * tmp(j)
+        }
+        res(i) = tmpSum
+    }
+    res
+  }
+  def MulDoc( _doc : SDoc ) : SVector = {
+    val d = _doc.sorted
+    require(m_rows <= d.last._1)
+    val res = new SVector(m_cols)
+    (0 until m_cols).map{
+      i =>
+        var sum = 0d
+        val c = m_data(i)
+        (0 until d.size).map{
+          j =>
+            sum += c(d(j)._1 - 1) * d(j)._2
+        }
+        res(i) = sum
+        sum = 0d
+    }
+    res
+  }
+
+  /**
+   * Grammar suger!!
+   * @param _y
+   * @param _x
+   * @return
+   */
+  def apply( _y : Int, _x : Int ) = getElem( _y, _x )
+  def update( _y : Int, _x : Int, _v : Double ) = updateElem(_y, _x, _v)
+  def * (_doc : SDoc) = MulDoc(_doc)
+  def * (_line : SVector) = MulRow(_line)
+}
+
+object SelfAutoEncoder {
+  /// learningRate
+  var lr : Double = 0.3
+  /// Weight Decay lamda1/lamda2, to calc more exactly, use 2 Ints instead of 1 Double.
+  var lamda1 : Double = 1d
+  var lamda2 : Double = 1d
+
+  def setLR(_lr : Double ) = lr = _lr
+
+  def FeedForward0( W1 : Matrix, W2 : Matrix, b1 : SVector, b2 : SVector, _in : SVector ) : (SVector, SVector) ={
+    val z0 = SVectorPlus(W1.MulRow(_in), b1)
+    val a0 = z0.map( x => sigmoid(x) )
+    val z1 = SVectorPlus(W2.MulRow(a0), b2)
+    val a1 = z1.map( x => sigmoid(x) )
+    (a0 -> a1)
+  }
+  def FeedForward0( W1 : Matrix, W2 : Matrix, b1 : SVector, b2 : SVector, _in : SDoc ) : (SVector, SDoc) = {
+    val z0 = SVectorPlus(W1.MulDoc(_in), b1)
+    val a0 = z0.map( x => sigmoid(x) )
+    val z1 = (0 until _in.size).map{
+      i =>
+        val c = W2.getCol(_in(i)._1 -1)
+        _in(i)._1 -> SVectorMul(c,a0)
+    }.toArray
+    val a1 = z1.map( x => x._1 -> sigmoid(x._2) )
+    (a0, a1)
+  }
+
+  def encode(W1 : Matrix, b1: SVector, _in : SVector) : SVector = {
+    SVectorPlus( W1 * _in, b1).map( x => sigmoid(x) )
+  }
+
+  def decode(W2 : Matrix, b2 : SVector, _hOut : SVector ) : SVector = {
+    SVectorPlus( W2 * _hOut , b2 ).map( x => sigmoid(x) )
+  }
+
+  def encode(W1 : Matrix, b1 : SVector, _in : SDoc) : SVector = {
+    SVectorPlus( W1 * _in, b1 ).map( x => sigmoid(x) )
+  }
+
+  def decode(W2 : Matrix, b2 : SVector, _hOut : SVector, _in : SDoc) : SDoc = {
+    (0 until _in.size).map{
+      i =>
+        val c = W2.getCol(_in(i)._1 -1)
+        _in(i)._1 -> SVectorMul(c, _hOut)
+    }.map( x => x._1 -> sigmoid(x._2) ).toArray
+  }
+
+  def FeedForward( W1 : Matrix, W2 : Matrix, b1 : SVector, b2 : SVector, _in : SVector ) : (SVector, SVector) ={
+    val a0 = encode(W1,b1,_in)
+    val a1 = decode(W2, b2, a0)
+    a0 -> a1
+  }
+
+  def FeedForward( W1 : Matrix, W2 : Matrix, b1 : SVector, b2 : SVector, _in : SDoc ) : (SVector, SDoc) = {
+    val a0 = encode(W1, b1, _in)
+    val a1 = decode(W2, b2, a0, _in)
+    a0 -> a1
+  }
+
+  def calcLossOut( _in : SVector, _out : SVector ) : Double = {
+    val subRes = SVectorSub(_out, _in)
+    val res = subRes.map{
+      x =>
+        x * x / 2d
+    }.sum
+    res
+  }
+
+  def calcLossOut( _subRes : SVector ) : Double = {
+    _subRes.map {
+      x =>
+        x * x / 2d
+    }.sum/_subRes.size
+  }
+
+  def calcLossOut( _in : SDoc, _out : SDoc ) : Double = {
+    val subRes = SDocSub(_out, _in)
+    val res = subRes.map{
+      x =>
+        x._2 * x._2 / 2d
+    }.sum
+    res
+  }
+
+  def calcLossOut( _subRes : SDoc ) : Double = {
+    _subRes.map {
+      x =>
+        x._2 * x._2 / 2d
+    }.sum
+  }
+
+  def calcErrOut( _in : SVector, _out : SVector ) : SVector = {
+    val subRes = SVectorSub(_in,_out )
+    val loss = calcLossOut(subRes)
+    println("Loss : " + loss )
+    val dif_out = _out.map( x => Dif_sigmoid(x) )
+    SVectorDotMul(subRes, dif_out)
+  }
+
+  def calcErrOut( _in : SDoc, _out : SDoc ) : SDoc = {
+    val subRes = SDocSub(_in, _out)
+    val loss = calcLossOut(subRes)
+    println("Loss : " + loss)
+    val dif_out = _out.map( x => x._1 -> Dif_sigmoid(x._2) )
+    SDocDotMul(subRes, dif_out)
+  }
+
+  def calcErrHidden( _errOut : SVector, W2 : Matrix, _hiddenOut : SVector ) : SVector = {
+    val errHidden = new SVector(_hiddenOut.size)
+    (0 until _errOut.size).map{
+      i =>
+        (0 until errHidden.size).map{
+          j =>
+            errHidden(j) += _errOut(i) * W2(i,j)
+        }
+    }
+    val dif_hidden = _hiddenOut.map( x => Dif_sigmoid(x) )
+    SVectorDotMul(errHidden, dif_hidden)
+  }
+
+  def calcErrHidden( _errOut : SDoc, W2 : Matrix, _hiddenOut : SVector ) : SVector = {
+    val errHidden = new SVector(_hiddenOut.size)
+    (0 until _errOut.size).map{
+      i =>
+        val k = _errOut(i)._1
+        (0 until errHidden.size).map{
+          j =>
+            errHidden(j) += _errOut(i)._2 * W2(k,j)
+        }
+    }
+    val dif_hidden = _hiddenOut.map( x => Dif_sigmoid(x) )
+    SVectorDotMul(errHidden, dif_hidden)
+  }
+
+  /// Wij -> W(j,i) -> in(j) -> Out(i) -> err(i)
+  /// Wji -> W(i,j) -> in(i) -> out(j) -> err(j)
+  def updateW(_in : SVector, _hiddenOut : SVector,
+               _errHidden : SVector, _errOut : SVector,
+               W1 : Matrix, W2 : Matrix,
+               b1 : SVector, b2 : SVector) = {
+    (0 until _errHidden.size).map{
+      i =>
+        ( 0 until W1.getCol(i).size ).map{
+          j =>
+            W1(i,j) += lr * ( lamda1 * ( _in(j) * _errHidden(i) ) - lamda2 * W1(i,j) )
+        }
+        b1(i) += lr * _errHidden(i)
+    }
+    ( 0 until _errOut.size).map{
+      i =>
+        ( 0 until W2.getCol(i).size ).map{
+          j =>
+            W2(i,j) += lr * (lamda1 * _hiddenOut(j) * _errOut(i) - lamda2 * W2(i,j))
+        }
+        b2(i) += lr * _errOut(i)
+    }
+  }
+  /// a1 = f( W11x1 + W12x2 + W13x3 + b1)
+  /// a2 = f( W21x1 + W22x2 + W23x3 + b2)
+  /// a3 = f( W31x1 + W22x2 + W33x3 + b3)
+  def updateW(_in : SDoc, _hiddenOut : SVector,
+               _errHidden : SVector, _errOut : SDoc,
+               W1 : Matrix, W2 : Matrix,
+               b1 : SVector, b2 : SVector) = {
+    (0 until _errHidden.size).map{
+      i =>
+
+    }
+
+  }
+
+}
+
+
+val data = new Array[SVector](8).map( _ =>  new SVector(8) )
+(0 until data.size).map{
+ i =>
+   data(i)(i) = 1
+}
+import SelfAutoEncoder._
+val rand = new Random(System.currentTimeMillis())
+val W1 = new Matrix(3,8,System.currentTimeMillis())
+val W2 = new Matrix(8,3,System.currentTimeMillis())
+val b1 = new SVector(3).map( x => rand.nextDouble() )
+val b2 = new SVector(8).map( x => rand.nextDouble() )
+(0 until 3000 ).map{
+ adsf =>
+   data.map{
+     line =>
+//            val line = data.head
+       //        line.foreach(println)
+       //        println
+       val features = encode(W1,b1,line)
+//            features.foreach(println)
+//            println
+       val outPut = decode(W2, b2, features)
+//            outPut.foreach(println)
+//            println
+       val errOut = calcErrOut(line, outPut)
+       //        println
+       //        errOut.foreach(println)
+       //        println
+       val errHidden = calcErrHidden( errOut, W2, features )
+       //        errHidden.foreach(println)
+       //        println
+       updateW(line, features, errHidden, errOut, W1, W2, b1, b2)
+   }
+ }
+data.map{
+ line =>
+   //            val line = data.head
+           line.foreach(println)
+           println
+   val features = encode(W1,b1,line)
+               features.foreach(println)
+               println
+   val outPut = decode(W2, b2, features)
+               outPut.foreach(i => println(i.round))
+               println
+   // val errOut = calcErrOut(line, outPut)
+   //         println
+   //         errOut.foreach(println)
+   //         println
+   // val errHidden = calcErrHidden( errOut, W2, features )
+   //         errHidden.foreach(println)
+   //         println
+   // updateW(line, features, errHidden, errOut, W1, W2, b1, b2)
+}
+
+
+
+
+
+
+
+
+//Row 
+
+import scala.math.exp
+
+/**
+ * Created by suanec on 2016/4/7 : 22:26.
+ */
+object util {
+  type SVector = Array[Double]
+  type SElem = (Int, Int, Double)
+  type SWord = (Int, Double)
+  type SDoc = Array[SWord]
+
+  def sigmoid( z : Double ) : Double = 1d / ( 1 + exp(-z) )
+
+  def tanh( z : Double ) : Double = {
+    val z1 = exp(-z)
+    val z2 = exp(z)
+    (z2 - z1)/(z2 + z1)
+  }
+
+  def Dif_sigmoid( z : Double ) : Double = sigmoid(z) / ( 1 - sigmoid(z) )
+
+  def Dif_tanh( z : Double ) : Double = 1 - tanh(z) * tanh(z)
+
+  def Srandom( _rand : scala.util.Random ) : Double = _rand.nextGaussian() % 0.1
+
+  def SVectorRandom( _vec : SVector, _seed : Long = 0L ) : SVector = {
+    import scala.util.Random
+    val rand = new Random(_seed)
+    val res = _vec.map( _ => Srandom(rand) )
+    res
+  }
+
+  def SVectorPlus ( _a : SVector, _b : SVector ) : SVector = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i) + _b(i)
+    }.toArray
+  }
+
+  def SVectorSub( _a : SVector, _b : SVector ) : SVector = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i) - _b(i)
+    }.toArray
+  }
+
+  def SVectorMul( _a : SVector, _b : SVector ) : Double = {
+    require(_a.size == _b.size)
+    var sum = 0d
+    (0 until _a.size).map{
+      i =>
+        sum += _a(i) * _b(i)
+    }
+    sum
+  }
+
+  def SVectorDotMul( _a : SVector, _b : SVector ) : SVector = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i) * _b(i)
+    }.toArray
+  }
+
+  def SDocSub( _a : SDoc, _b : SDoc ) : SDoc = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i)._1 -> (_a(i)._2 - _b(i)._2)
+    }.toArray
+  }
+
+  def SDocDotMul( _a : SDoc, _b : SDoc ) : SDoc = {
+    require(_a.size == _b.size)
+    (0 until _a.size).map{
+      i =>
+        _a(i)._1 -> _a(i)._2 * _b(i)._2
+    }.toArray
+  }
+
+  def SDoc2SVector( _doc : SDoc, _line : SVector ) = {
+    require( _doc.last._1 < _line.size+1 )
+    _doc.map( x => _line(x._1) = x._2 )
+  }
+
+  def SVector2SDoc( _line : SVector ) : SDoc = {
+    val res_doc = new SDoc(_line.size)
+    (0 until _line.size).map{
+      i =>
+        res_doc(i) = (i + 1) -> _line(i)
+    }
+    res_doc
+  }
+
+}
+
+import scala.util.Random
+import util._
+
+/**
+ * Created by suanec on 2016/4/6 : 19:26.
+ */
+class Matrix ( private var m_row : Int,
+                private var m_col : Int,
+                private var m_data : Array[Array[Double]] ) {
+  def this() = this(0,0,null)
+  def this( _row : Int, _col : Int ) = this(_row, _col, new Array[Array[Double]](_row).map( line => new Array[Double](_col)) )
+  def this( _data : Array[Array[Double]] ) = {
+    this( _data.size, _data.map( line => line.size ).max, _data )
+    m_data = new Array[Array[Double]](m_row).map( line => new Array[Double](m_col))
+    (0 until _data.size).map{
+      i =>
+        (0 until _data(i).size).map{
+          j =>
+            m_data(i)(j) = _data(i)(j)
+        }
+    }
+  }
+  def this( _row : Int, _col : Int, _seed : Long ) {
+    this(_row, _col, null)
+    val rand = new Random(_seed)
+    m_data = new Array[Array[Double]](_row).map {
+      line =>
+        new Array[Double](_col).map( x => rand.nextGaussian() % 0.1 )
+    }
+  }
+
+  def getRows() = m_row
+  def getCols() = m_col
+  def size() = m_row -> m_col
+  def getValue() = m_data
+  def getRow( _x : Int ) = {
+    require( _x > 0 && _x <= m_row )
+    val row = _x - 1
+    m_data(row)
+  }
+  def setRow( _x : Int, _arr : Array[Double] ) = {
+    require( _x > 0 && _x <= m_row && _arr.size == m_col )
+    val row = _x - 1
+    m_data(row) = _arr.clone
+    m_data(row).last == _arr.last
+  }
+
+  /**
+   * Grammar suger!!
+   * @param _y
+   * @param _x
+   * @return
+   */
+  def apply( _x : Int, _y : Int ) : Double = {
+    require(_x > 0 && _y > 0 && _x <= m_row && _y <= m_col)
+    val row = _x - 1
+    val col = _y - 1
+    m_data(row)(col)
+  }
+  def update( _x : Int, _y : Int, _v : Double ) : Double = {
+    require(_x > 0 && _y > 0 && _x <= m_row && _y <= m_col)
+    val row = _x - 1
+    val col = _y - 1
+    m_data(row)(col) = _v
+    m_data(row)(col)
+  }
+
+  def MulRow( _line : SVector ) : SVector = {
+    require( m_col == _line.size )
+    val res = new Array[Double](m_row)
+    (0 until m_row).map{
+      i =>
+        val tmp = m_data(i)
+        var tmpSum = 0d
+        (0 until tmp.size).map{
+          j =>
+            tmpSum += _line(j) * tmp(j)
+        }
+        res(i) = tmpSum
+    }
+    res
+  }
+  def MulDoc( _doc : SDoc ) : SVector = {
+    val d = _doc.sorted
+    require(m_col >= d.last._1)
+    val res = new SVector(m_row)
+    (0 until m_row).map{
+      i =>
+        var sum = 0d
+        val c = m_data(i)
+        (0 until d.size).map{
+          j =>
+            sum += c(d(j)._1 - 1) * d(j)._2
+        }
+        res(i) = sum
+        sum = 0d
+    }
+    res
+  }
+  def * (_doc : SDoc) = MulDoc(_doc)
+  def * (_line : SVector) = MulRow(_line)
+  def + (_m : Matrix) : Matrix = {
+    require(_m.getRows()==m_row && _m.getCols() == m_col)
+    val res = new Matrix(_m.getValue)
+    val arr = res.getValue()
+    (0 until arr.size).map{
+      i =>
+        (0 until arr(i).size).map{
+          j =>
+            arr(i)(j) += m_data(i)(j)
+        }
+    }
+    res
+  }
+  def - (_m : Matrix) : Matrix = {
+    require(_m.getRows()==m_row && _m.getCols() == m_col)
+    val res = new Matrix(m_data)
+    val arr = res.getValue()
+    (0 until arr.size).map{
+      i =>
+        (0 until arr(i).size).map{
+          j =>
+            arr(i)(j) -= m_data(i)(j)
+        }
+    }
+    res
+  }
+
+//  def >> ( _file : java.io.File = "" )
+
+}
+import util._
+//import SelfAERowMatrix.Matrix
+
+/**
+ * Created by suanec on 2016/4/6 : 21:22.
+ */
+object MLMLP {
+  var lr = 0.3
+  var lamda1 = 1d
+  var lamda2 = 0d
+
+  /// z = W1 * _line + b1
+  /// a = sigmoid(z)
+  def encode( W1 : Matrix, b1 : SVector, _line : SVector ) : SVector = SVectorPlus( W1 * _line, b1 ).map(sigmoid(_))
+//  {
+//    val z = SVectorPlus( W1 * _line, b1)
+//    val a = z.map(sigmoid(_))
+//    z
+//  } //
+
+  def decode( W2 : Matrix, b2 : SVector, _hOut : SVector ) : SVector = SVectorPlus( W2 * _hOut, b2 ).map(sigmoid(_))
+
+  def encode( W1 : Matrix, b1 : SVector, _doc : SDoc ) : SVector = SVectorPlus( W1 * _doc, b1 ).map(sigmoid(_))
+
+  def decode( W2 : Matrix, b2 : SVector, _hOut : SVector, _doc : SDoc ) : SDoc = {
+    val res_doc = new SDoc(_doc.size)
+    (0 until _doc.size).map{
+      i =>
+        val row = _doc(i)._1
+        res_doc(i) = row -> sigmoid(SVectorMul( W2.getRow(row), _hOut ) + b2(i))
+    }
+    res_doc
+  }
+
+  def FeedForward( W1 : Matrix, W2 : Matrix, b1 : SVector, b2 : SVector, _in : SVector ) : (SVector, SVector) = {
+    val hOut = encode( W1, b1, _in )
+    val lOut = decode( W2, b2, hOut )
+    (hOut, lOut)
+  }
+  def FeedForward( W1 : Matrix, W2 : Matrix, b1 : SVector, b2 : SVector, _doc : SDoc ) : ( SVector, SDoc ) = {
+    val hOut = encode( W1, b1, _doc )
+    val lOut = decode( W2, b2, hOut, _doc )
+    (hOut, lOut)
+  }
+
+  def calcLoss( _lOut : SVector,  _line : SVector) : Double = {
+    val subRes = SVectorSub(_lOut, _line)
+    subRes.map{
+      x =>
+        (x * x * 0.5)
+    }.sum / subRes.size
+  }
+
+  def calcLoss( _lOut : SDoc, _doc : SDoc ) : Double = {
+    val subRes = SDocSub(_lOut, _doc)
+    val resArr = subRes.map{
+      x =>
+        (x._2 * x._2 * 0.5)
+    }
+    resArr.sum/resArr.size
+  }
+  def calcErrOut( _lOut : SVector, _line : SVector ) : SVector = {
+    val subRes = SVectorSub( _lOut, _line )
+    val res = (0 until subRes.size).map{
+      i =>
+        _lOut(i) * ( 1 - _lOut(i) ) * subRes(i)
+    }.toArray
+    res
+  }
+  def calcErrOut( _lOut : SDoc, _doc : SDoc ) : SDoc = {
+    val subRes = SDocSub( _lOut, _doc )
+    val res = (0 until subRes.size).map{
+      i =>
+        val row = _doc(i)._1
+        row -> ( _lOut(i)._2 * ( 1 - _lOut(i)._2 ) * subRes(i)._2 )
+    }.toArray
+    res
+  }
+  def calcErrHidden( _errOut : SVector, W2 : Matrix, _hOut : SVector ) : SVector = {
+    val res = new SVector(_hOut.size)
+    (0 until res.size).map{
+      i =>
+        (0 until _errOut.size).map{
+          j =>
+            res(i) += _errOut(j) * W2(j+1,i+1)
+        }
+        res(i) *= ( _hOut(i) * ( 1 - _hOut(i)) )
+    }
+    res
+  }
+  def calcErrHidden( _errOut : SDoc, W2 : Matrix, _hOut : SVector ) : SVector = {
+    val res = new SVector(_hOut.size)
+    (0 until res.size).map{
+      i =>
+        (0 until _errOut.size).map{
+          j =>
+            val k = _errOut(j)._1
+            res(i) += _errOut(j)._2 * W2(k, i+1)
+        }
+        res(i) *= ( _hOut(i) * ( 1 - _hOut(i)) )
+    }
+    res
+  }
+  def updateW( W1 : Matrix, W2 : Matrix,
+             b1 : SVector, b2 : SVector,
+             _line : SVector, _hOut : SVector,
+             _errOut : SVector, _errHidden : SVector ) = {
+    (0 until _errOut.size).map{
+      i =>
+        (0 until _errHidden.size).map{
+          j =>
+            W2(i+1,j+1) -= lr * ( lamda1*(_errOut(i) * _hOut(j)) + lamda2*W2(i+1,j+1) )
+        }
+        b2(i) -= lr * _errOut(i)
+    }
+    (0 until _hOut.size).map{
+      i =>
+        (0 until _line.size).map{
+          j =>
+            W1(i+1,j+1) -= lr * ( lamda1*(_errHidden(i) * _line(j)) + lamda2*W1(i+1,j+1) )
+        }
+        b2(i) -= lr * _errHidden(i)
+    }
+  }
+  def updateW( W1 : Matrix, W2 : Matrix,
+                b1 : SVector, b2 : SVector,
+               _doc : SDoc, _hOut : SVector,
+               _errOut : SDoc, _errHidden : SVector) = {
+    (0 until _errOut.size).map{
+      i =>
+        val k = _errOut(i)._1
+        (0 until _errHidden.size).map{
+          j =>
+            W2(k, j+1) -= lr * ( lamda1 * (_errOut(i)._2 * _hOut(j)) + lamda2 * W2(k, j+1))
+        }
+        b2(k - 1) -= lr * _errOut(i)._2
+    }
+    (0 until _hOut.size).map{
+      i =>
+        (0 until _doc.size).map{
+          j =>
+            val k = _doc(j)._1
+            W1(i+1, k) -= lr * ( lamda1 * ( _errHidden(i) * _doc(j)._2) + lamda2 * W1(i+1, k) )
+        }
+        b1(i) -= lr * _errHidden(i)
+    }
+  }
+  def BackPropagation( W1 : Matrix, W2 : Matrix,
+                       b1 : SVector, b2 : SVector,
+                       _in : SVector ) : Double = {
+//    val hOut = encode(W1, b1, _in)
+//    val lOut = decode(W2, b2, hOut)
+    val (hOut, lOut) = FeedForward(W1,W2,b1,b2,_in)
+    val loss = calcLoss(lOut,_in)
+//    println("Loss : " + loss)
+    val errOut = calcErrOut(lOut, _in)
+    val errHidden = calcErrHidden(errOut, W2, hOut)
+    updateW(W1, W2, b1, b2, _in, hOut, errOut, errHidden)
+    loss
+  }
+  def BackPropagation( W1 : Matrix, W2 : Matrix,
+                        b1 : SVector, b2 : SVector,
+                        _doc : SDoc) : Double = {
+    val (hOut, lOut) = FeedForward(W1, W2, b1, b2, _doc)
+    val loss = calcLoss(lOut, _doc)
+    val errOut = calcErrOut(lOut, _doc)
+    val errHidden = calcErrHidden(errOut, W2, hOut)
+    updateW(W1, W2, b1, b2, _doc, hOut, errOut, errHidden)
+    loss
+  }
+
+}
+import MLMLP._
+(0 to 3000).map{
+  i =>
+    data.map{
+      line =>
+//          j =>
+//            val line = data.head
+        val loss = BackPropagation(W1, W2, b1, b2, line)
+        writer.write("Loss : " + loss + "\n")
+    }
+}
+writer.flush()
+val rst = (0 until data.size).map {
+  i =>
+    val line = data(i)
+    val enc = encode(W1, b1, line)
+    val dec = decode(W2, b2, enc)
+    (line.map(_.round),enc.map(_.round),dec.map(_.round))
+}
