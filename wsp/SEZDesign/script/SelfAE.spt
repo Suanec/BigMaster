@@ -168,7 +168,7 @@ object SelfAutoEncoder {
   var lr : Double = 0.3
   /// Weight Decay lamda1/lamda2, to calc more exactly, use 2 Ints instead of 1 Double.
   var lamda1 : Double = 1d
-  var lamda2 : Double = 1d
+  var lamda2 : Double = 0d
 
   def setLR(_lr : Double ) = lr = _lr
 
