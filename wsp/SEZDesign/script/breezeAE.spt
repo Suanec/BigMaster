@@ -1,4 +1,5 @@
 scala -J-Dcom.github.fommil.netlib.NativeSystemBLAS.natives=mkl_rt.dll -cp "D:\betn\Scala\ScalaSpace\breezeLib\breezeLib_2.11-assembly-natives-1.0.jar"
+scala -cp "D:\Docs\Works_And_Jobs\Sina\libs\ml\self-libs\vbreeze_2.11-0.12-assembly-0.1.0-SNAPSHOT.jar"
 
 object breezeAE extends Serializable {
   import scala.collection.mutable.ArrayBuffer
@@ -37,9 +38,14 @@ object breezeAE extends Serializable {
   type SDoc = Array[SWord]
   type SDocs = Array[SDoc]
   type SData = (Int, SDoc)
-  var lr = 0.001
+  var learningRate = 0.001
+  private var lambda1 = 1d
+  private var lambda2 = 0d
+  private var lambdaL2 = 0d
   val b = BDM(1d)
+  val bv = BDV(1d)
 
+  def size(_m : SDM) : (Int,Int) = _m.rows -> _m.cols
   def vertcat( _x : SDM, _y : SDM ) : SDM = {
     DenseMatrix.vertcat(_x, _y)
   }
@@ -49,7 +55,17 @@ object breezeAE extends Serializable {
     BrzSigmoid(_w * vertcat(_x, b))
   }
 
-  def setLr(_lr : Double) = { lr = _lr }
+  def setLr(_lr : Double) = { learningRate = _lr }
+  def setLambda1(_lambda : Double = 1d) = {
+    lambda1 = _lambda
+    if(lambda2 == 0) {
+      lambdaL2 = 0
+    }
+    else {
+      lambdaL2 = lambda1 / lambda2
+    }
+  }
+  def setL2(_lambda : Double = 0d) = { lambdaL2 = _lambda }
   // type SDataSet = (Int, Int, RDD[SData])
 
   /**
@@ -137,7 +153,7 @@ object breezeAE extends Serializable {
   def InitWeightGaussian(
     _size : Array[Int], 
     _mu : Double = 0d,
-    _sigma : Double = 1d) : (Array[SDM], Array[SDM]) = {
+    _sigma : Double = 1e-4 ) : (Array[SDM], Array[SDM]) = {
     val res = new Array[SDM](_size.size -1)
     res.indices.map{
       i => 
@@ -277,8 +293,6 @@ object breezeAE extends Serializable {
   //   rst
   // }///   def decode(_wOut : SDM, _hideOut: SDM ) : SDM = {
 
-
-
   def FeedForwardStack( _inWs : Array[SDM], 
     _outWs : Array[SDM], 
     _in : SBRZV ) : (Array[SDM], (Array[SDM], SBRZV) )= {
@@ -294,6 +308,13 @@ object breezeAE extends Serializable {
     a0 -> a1 
   }
 
+  def FeedForward( _inWs : Array[SDM], 
+    _outWs : Array[SDM],
+    _in : SBRZV ) = {
+    require( _inWs.size == _outWs.size, "NetConfig error in FeedForward")
+    if(_inWs.size == 1) FeedForwardSingle(_inWs,_outWs,_in)
+    else FeedForwardStack(_inWs,_outWs,_in)
+  }
   def calcLoss( _inDoc : SBRZV, _outDoc : SBRZV ) : Double = {
     val minuSDoc = _inDoc - _outDoc
     val powDoc = minuSDoc :* minuSDoc
@@ -321,161 +342,86 @@ object breezeAE extends Serializable {
     println(s"Loss : ${loss}")
     minusVec :* Dif_sigmoid(_outDoc)
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  def calcErrorHidden( _errOut : SDoc, _hideOut : SDM,  _wOut : SDM ) : SDM = {
-    // val wOutT = _wOut.t
-    // val res = MulDoc( wOutT, _errOut )
-    val errorHidden = new SDM(_hideOut.rows,1)
-    for(i <- 0 until _errOut.size){
-      val k = _errOut(i)._1 -1
-      val v = _errOut(i)._3
-      for(j <- 0 until _hideOut.size){
-        errorHidden(j,0) += _wOut(k,j) * v        
-      }
-    }
-    val h = _hideOut :* ( 1.0 - _hideOut )
-    errorHidden :*= h
-    errorHidden
+  def calcErrorHidden( _errOut : SBRZV, _outWs : SDM, _hideOut : SDM) : SBRZV = {
+    val wT = _outWs.t
+    val errHidden = wT * _errOut
+    val dif_hidden = Dif_sigmoid(_hideOut(::,0))
+    dif_hidden :* errHidden
   }
+  // def calcErrorHiddenStack( _errOut : SBRZV, _inWs : Array[SDM], _outWs : Array[SDM], _hideOuts : Array[SDM]) : Array[SBRZV] = {}
 
-  def updateWB(
-    _wIn : SDM, 
-    _wOut : SDM, 
-    _errHidden : SDM, 
-    _errOut : SDoc,
-    _hideOut : SDM,    
-    _doc : SDoc,
-    _lr : Double ) : (SDM,SDM) = {
-    val dIn = _wIn.copy * 0d
-    // dIn(::,-1) += _wIn(::,-1)
-    val dOut = _wOut.copy * 0d
-    // dOut(::,-1) += _wOut(::,-1)
-    for( i <- 0 until _doc.size ){
-      val k = _doc(i)._1 -1
-      val v = _doc(i)._3
-      val vOut = _errOut(i)._3
-      for( j <- 0 until _hideOut.size ){
-        dIn(j,k) += v * _errHidden(j,0)
-        // dIn(j,k) += (_wIn(j,k) * 2d)
-        dOut(k,j) += vOut * _hideOut(j,0)
-        // dOut(k,j) += (_wOut(k,j) * 2d)
-        dIn(j,-1) = _errHidden(j,0)
-        // dIn(j,-1) += (_wIn(j,-1) * 2d)
-      }
-      dOut(k,-1) = (vOut - _wOut(k,-1))
-    }
-    _wIn -= (dIn * _lr)
-    _wOut -= (dOut * _lr)
-    // _wIn -= (dIn :* 1.0 + _wIn * 2.0) * _lr
-    // _wOut -= (dOut * _lr) + _wOut * 2.0 * _lr
-
-    (_wIn,_wOut)
+  def updateW(_in : SBRZV, _hideOut : SDM,
+              _errOut : SBRZV, _errHidden : SBRZV, 
+              _inWs : SDM, _outWs : SDM) = {
+    val dv_in = BDV.vertcat(_in.toDenseVector, bv).t 
+    val deltaWin = _errHidden.toDenseVector * dv_in
+    require(deltaWin.rows == _inWs.rows && deltaWin.cols == _inWs.cols, "deltaWin.size != _inWs.size")
+    _inWs += deltaWin * lambda1 * learningRate
+    val dv_out = _errOut.toDenseVector 
+    val hov = BDV.vertcat(_hideOut(::,0),bv).t
+    val deltaWout = dv_out * hov
+    require(deltaWout.rows == _outWs.rows && deltaWout.cols == _outWs.cols, "deltaWout.size != _outWs.size ")
+    _outWs += deltaWout * lambda1 * learningRate
   }
-
-  def NNBP( _w : Array[SDM], _inDoc : SDoc ) : (SDM,SDM) = {
-    val (hideOut,docOut) = NNFF(_w,_inDoc)
-
-    val loss = calcLoss(_inDoc,docOut)
-    val errDoc = calcErrorOut(_inDoc,docOut)
-    println(s"--\t--\tLine : ${errDoc.head._2}\tLoss : $loss\t--\t--")
-
-    val errorHidden = calcErrorHidden( errDoc, hideOut, _w.last )
-
-    val nW = updateWB( _w(0), _w(1), errorHidden, errDoc, hideOut, _inDoc, lr )
-    (nW._1,nW._2)
+  def NNBP( _wIns : Array[SDM], _wOuts : Array[SDM], _in : SBRZV) : (Array[SDM], Array[SDM]) = {
+    val (hideOuts, outObject) = FeedForward(_wIns,_wOuts,_in)
+    val outVector = outObject.asInstanceOf[SBRZV]
+    val errorOut = calcErrorOut(_in,outVector)
+    val errorHidden = calcErrorHidden( errorOut, _wOuts.head, hideOuts.head)
+    val rst = updateW(_in, hideOuts.head, errorOut, errorHidden, _wIns.head, _wOuts.head)
+    (_wIns, _wOuts)
+    // hideOuts
   }
-
-  def Matlab2Matrix( _data : SDocs ) : SDM = {
-    val rowNum = _data.size
-    val colNum = _data.map{
-      doc =>
-        doc.map( word => word._1 ).max
-    }.max + 1
-    val res = new SDM(rowNum,colNum)
-    _data.foreach{
-      doc => 
-        doc.foreach{
-          word =>
-            res(word._2,word._1) = word._3
-        }
-    }
-    res
-  }
-
 }
-
 
 import breezeAE._
-val v = new BSV(Array(1,3),Array(32,26d),5)
-val v1 = BSV.vertcat(v,BSV(1d))
-val k = new BDV(Array(1,2,3,4,5d))
-val t = gaussianM(4,5,0,1)
-val eggData : SDocs = (0 until 8).map{
-  i =>
-    Array((i+1,i+1,1d))
-}.toArray
-val eggData0 : SDocs = (0 until 8).map{
-  i =>
-    val doc = Array.fill[SWord](8)((0,0,0d)) 
-    (0 until 8).map{
-      j =>
-      if(i != j) doc(j) = (j+1,i+1,0d)
-      else doc(j) = (j,i,1d)
+val eggData = BDM.eye[Double](8)
+val eggCols = (0 until eggData.cols).map( i => eggData(::,i) )
+val eggRows = (0 until eggData.rows).map( i => eggData(i,::) )
+val (iw,ow) = InitWeightGaussian(Array(8,3,8))
+setLr(0.3)
+
+
+(0 until 1000).map{
+  i => 
+    eggCols.map{
+      line => NNBP(iw,ow,line)
     }
-    doc
-}.toArray
-val docs = eggData0
-val aew = InitWeightGaussian(Array(8,3,8))
-// val aew = InitWeightGaussian(Array(8,5,3,5,8))
-val doc = docs.head
-val paewh = aew.head.copy
-val paewl = aew.last.copy
-// NNBP(aew,doc)
-(0 until 1000).map( i => docs.map{
-    print( "iter : " + i )
-    doc => NNBP(aew,doc)
-  })
-val enc = docs.map{
-  doc => 
-  val rDoc = doc
-  val rNum = rDoc.head._2
-  val rEnc = encode(aew.head,rDoc)
-  (rNum,rEnc.map(_.round).toArray)
 }
-val dec = docs.map{
-  doc => 
-    val rDoc = doc
-    val rNum = rDoc.head._2
-    val rEnc = encode(aew.head,rDoc)
-    val rDec = decode(aew.last,rEnc,rDoc)
-    rNum -> rDec
+val enc = eggCols.map{
+  line => 
+    val eh = encode(iw,line).head//.map(_.round)
+    (line -> eh.data.map(_.round))
 }
+val dec = eggCols.map{
+  line => 
+    val eh = encode(iw,line).head
+    val eo = decodeSigle(ow,eh,line).map(_.round)
+    (line -> eo)
+}.foreach(println)
+
+
+val (iw,ow) = InitWeightGaussian(Array(8,3,8))
+setLr(0.3)
+val eggSparse = (0 until 8).map{
+  i =>
+    new SSV(Array(i),Array(1d),8)
+}
+(0 until 1000).map{
+  i => 
+    eggSparse.map{
+      line => NNBP(iw,ow,line)
+    }
+}
+val enc = eggSparse.map{
+  line => 
+    val eh = encode(iw,line).head//.map(_.round)
+    (line -> eh.data.map(_.round))
+}
+val dec = eggSparse.map{
+  line => 
+    val eh = encode(iw,line).head
+    val eo = decodeSigle(ow,eh,line).map(_.round)
+    (line -> eo)
+}.foreach(println)
+
