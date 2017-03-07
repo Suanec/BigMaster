@@ -8,13 +8,6 @@ CDAE.lnk
 References.lnk
 Supports.lnk
 spark-ml-0.8.0.zip
-wsp/spark-2.0.1.tgz
 wsp/spark-2.0.1/
-wsp/spark-ml-0.8.0/spark-ml/src/main/scala/com/weibo/
-wsp/spark-ml-0.8.0/spark-ml/src/test/scala/com/weibo/
-wsp/spark-ml-0.8.0/spark-ml/README.md
-wsp/spark-ml-0.8.0/spark-ml/doc/
-wsp/spark-ml-0.8.0/spark-ml/pom.xml
-wsp/spark-ml-0.8.0/spark-ml/scripts/
-wsp/spark-ml-0.8.0/spark-ml/src/main/scala/org/apache/spark/mllib/classification/
-wsp/spark-ml-0.8.0/spark-ml/src/test/resources/com/weibo/datasys/algorithms/
+wsp/spark-2.0.1.tgz
+wsp/spark-ml-0.8.0/
