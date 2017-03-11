@@ -1,3 +1,6 @@
+alias suanec='source /home/yantu/suanec/libs/env.sh'
+
+
 export SUANEC_HOME=/home/yantu/suanec
 export LIB_HOME=$SUANEC_HOME/libs
 export ANACONDA_HOME=$LIB_HOME/anaconda2
