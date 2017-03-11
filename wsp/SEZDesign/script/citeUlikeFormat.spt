@@ -1,0 +1,57 @@
+val srcPath = """D:\betn\BigMaster\wsp\data\ctrsr_datasets\"""
+val citeApath = srcPath + """citeulike-a\"""
+val aMult = citeApath + """mult.dat"""
+val aVocab = citeApath + """vocabulary.dat"""
+val aCitations = citeApath + """citations.dat"""
+val aItemTags = citeApath + """item-tag.dat"""
+val aData = citeApath + """raw-data.csv"""
+val aTags = citeApath + """tags.dat"""
+val aUsers = citeApath + """users.dat"""
+
+val dataAMult = scala.io.Source.fromFile(aMult).getLines.toArray
+val dataAVocab = scala.io.Source.fromFile(aVocab).getLines.toArray
+val dataACitations = scala.io.Source.fromFile(aCitations).getLines.toArray
+val dataAItemTags = scala.io.Source.fromFile(aItemTags).getLines.toArray
+// val dataAData = scala.io.Source.fromFile(aData).getLines.toArray
+val dataATags = scala.io.Source.fromFile(aTags).getLines.toArray
+val dataAUsers = scala.io.Source.fromFile(aUsers).getLines.toArray
+
+val numUsers = dataAUsers.size
+val numItems = dataAMult.size
+val numTags = dataATags.size
+val numCitations = dataACitations.flatMap(_.split(' ')).size
+val numPairs = dataAUsers.flatMap(_.split(' ')).size
+
+
+val multData = scala.io.Source.fromFile(aMult).getLines.toArray.map{
+  line =>
+    val splits = line.split(" ")
+    splits.head -> splits.tail
+}
+
+val itemSize = data.size
+val itemMax = data.map(_.split(" ").head.toInt).max
+val words = scala.io.Source.fromFile(aVocab).getLines.toArray
+
+
+val citeTpath = srcPath + """citeulike-t\"""
+val tMult = citeTpath + """mult.dat"""
+val tVocab = citeTpath + """vocabulary.dat"""
+val tCitations = citeTpath + """citations.dat"""
+val tItemTags = citeTpath + """item-tag.dat"""
+val tData = citeTpath + """raw-data.csv"""
+val tTags = citeTpath + """tags.dat"""
+val tUsers = citeTpath + """users.dat"""
+
+val dataTMult = scala.io.Source.fromFile(tMult).getLines.toArray
+val dataTVocab = scala.io.Source.fromFile(tVocab).getLines.toArray
+val dataTCitations = scala.io.Source.fromFile(tCitations).getLines.toArray
+val dataTItemTags = scala.io.Source.fromFile(tItemTags).getLines.toArray
+val dataTTags = scala.io.Source.fromFile(tTags).getLines.toArray
+val dataTUsers = scala.io.Source.fromFile(tUsers).getLines.toArray
+
+val numUsers = dataTUsers.size
+val numItems = dataTMult.size
+val numTags = dataTTags.size
+val numCitations = dataTCitations.flatMap(_.split(' ')).size
+val numPairs = dataTUsers.flatMap(_.split(' ')).size
