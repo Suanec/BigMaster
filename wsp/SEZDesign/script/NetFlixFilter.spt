@@ -1,0 +1,98 @@
+val srcPath = """E:\222Shares\netflix"""
+val rstPath = """D:\betn\BigMaster\wsp\data\netflixRst"""
+val netflixDataFile = srcPath + "\\allData.txt"
+val movieTitleFile = """E:\222Shares\netflix\download\movie_titles.txt"""
+val movieTitleAndIdsFile = """E:\222Shares\netflix\grand_prize\grand_prize\movie_titles_with_ids.txt"""
+val IMDBPlotsPath = """D:\betn\BigMaster\wsp\data\IMDB\Plots\"""
+val urlSearchById = s"http://akas.imdb.com/title/tt${movie_id}/plotsummary"
+
+// val srcData = scala.io.Source.fromFile(netflixDataFile).getLines
+
+/// 把电影id当成用户id计算活跃用户了。
+// val positiveRating = srcData.map(_.split(',')).filter(_(2).toInt >= 5).toArray
+
+// val userActive = positiveRating.groupBy(_(0)).filter(_._2.size >= 3)
+
+// val positiveRating = srcData.map(_.split(',')).filter(_(2).toInt >= 5)
+
+// val buff = new scala.collection.mutable.ArrayBuffer[Array[String]]
+// val usrRst = new scala.collection.mutable.ArrayBuffer[String]
+// val printer = new java.io.PrintWriter(rstPath + "\\userActive.rst")
+// while(positiveRating.hasNext){
+//   val t = positiveRating.next 
+//   val tarr = t.init
+//   if(buff.isEmpty){
+//     buff += tarr
+//   }else if(tarr(0).toInt == buff.head(0).toInt){
+//     buff += tarr
+//   }else{
+//     printer.write(buff.map(_.mkString(",")).mkString("\n"))
+//     printer.write("\n")
+//     buff.clear
+//     buff += tarr
+//     val uid = tarr.head.toInt
+//     if(uid % 5000 == 0) println(uid)
+//   }
+// }
+//     printer.write(buff.map(_.mkString(",")).mkString("\n"))
+//     printer.write("\n")
+//     buff.clear
+//     buff += tarr
+//     val uid = tarr.head.toInt
+//     if(uid % 5000 == 0) println(uid)
+// val demoData = scala.io.Source.fromFile(netflixDataFile).getLines.take(10000).toArray
+// val demoUserActive = demoData.map(_.split(',')).filter(_(2).toInt >= 5).groupBy(_(0)).filter(_._2.size >= 3).size
+
+
+val srcData = sc.textFile(netflixDataFile)
+val positiveRating = srcData.
+  map(_.split(',').init).
+  filter(_(2).toInt >= 5)
+val userActive = positiveRating.
+  groupBy(_(1)).
+  filter(_._2.size > 3)
+val userActiveRst = userActive.map{
+    values =>
+      val lists = values._2.map(_.mkString(","))
+      lists.mkString("\n")
+  }
+val rstFile = rstPath + "\\userActive"
+import scala.sys.process._
+if(new java.io.File(rstFile).isDirectory) s"rm -rf $rstFile" !
+userActiveRst.saveAsTextFile(rstFile)/// count 23073555
+new java.io.File(rstFile).
+  listFiles.
+  map(_.toString).
+  filter(_.endsWith(".crc")).
+  map( x => s"rm -f $x" ! )
+
+
+val mid = userActive.flatMap(_._2.map(_.head)).distinct
+val midArr = mid.map(_.toInt).collect.sorted
+
+
+val titles = sc.textFile(movieTitleFile).
+  map(_.split(',')).
+  filter(item => midArr.contains(item(0).toInt))
+
+titles.map{
+  item =>
+    val fname = IMDBPlotsPath + 
+      item(2).filterNot("""\/:*?"<>|""".contains(_))
+    new java.io.PrintWriter(fname).close
+}.count
+
+val plotRstFile = """D:\betn\BigMaster\wsp\data\IMDB\movies.csv"""
+val plotData = sc.textFile(plotRstFile).
+  map(_.split(',')).
+  filter( item => item.init.last != "N/A" )
+
+val idsArr = sc.textFile(movieTitleAndIdsFile).collect
+// val idsRst = idsArr.filter(x => midArr.contains(x.split('\t').head.toInt))
+val idsRst = idsArr.map(_.split('\t').splitAt(2)._1).
+  filter(x => midArr.contains(x.head.toInt))
+val idsRstPath = rstPath + """\movie_titles_with_ids.rst"""
+val printer = new java.io.PrintWriter(idsRstPath)
+idsRst.map(x => printer.write(x.mkString(",") + "\n")).size
+printer.flush
+printer.close
