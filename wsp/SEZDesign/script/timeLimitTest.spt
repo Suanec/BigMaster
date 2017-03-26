@@ -1,0 +1,186 @@
+val dataSize = 100000000
+val start = System.nanoTime
+// (0 to dataSize).reduce(_ + _)
+val end = System.nanoTime
+val minus = end - start
+val seconds = minus / 1e6
+
+// val mx = new Array[Array[Double]](10000).map(x => Array.fill[Double](10000)(1) )
+
+// val mxSize = mx.flatten
+val rand = new scala.util.Random
+val tempNum = rand.nextDouble
+val mxSize = new Array[Double](dataSize).map(x => rand.nextDouble)
+val count = 10
+
+// (0 until count).map{
+//   i => 
+//     val start = System.nanoTime
+//     mxSize.map( i => tempNum * i )
+//     val end = System.nanoTime
+//     println("calc(tempNum * i) : " + i)
+//     (end - start) / 1e6
+//     /// 2702
+// }.sum / count
+
+
+// (0 until count).map{
+//   i => 
+//     val start = System.nanoTime
+//     mxSize.map( i => rand.nextDouble )
+//     mxSize.map( i => rand.nextDouble )
+//     val end = System.nanoTime
+//     println("Double Rand : " + i)
+//     (end - start) / 1e6
+//     /// 9443ms
+// }.sum / count
+
+(0 until count).map{
+  i => 
+    val start = System.nanoTime
+    mxSize.map( i => rand.nextDouble + rand.nextDouble )
+    // mxSize.map( i => tempNum + i )
+    val end = System.nanoTime
+    println("calc(rand.nextDouble + rand.nextDouble) : " + i)
+    (end - start) / 1e6
+    /// plus 1e8 3734ms 
+    /// 51 average 3186ms calc(1+1)
+    /// tempNum + i : 2553ms
+
+    /// scala average 7054ms calc(rand.nextDouble + rand.nextDouble)
+    /// spark average 8257ms calc(rand.nextDouble + rand.nextDouble)
+}.sum / count
+
+(0 until count).map{
+  i => 
+    val start = System.nanoTime
+    mxSize.map( i => rand.nextDouble * rand.nextDouble )
+    val end = System.nanoTime
+    println("calc(rand.nextDouble * rand.nextDouble) : " + i)
+    (end - start) / 1e6
+    /// scala 6610
+    /// spark 8203
+}.sum / count
+
+val rddSize = sc.parallelize(mxSize)
+(0 until count).map{
+  i => 
+    val start = System.nanoTime
+    rddSize.map( i => rand.nextDouble + rand.nextDouble )
+    // mxSize.map( i => tempNum + i )
+    val end = System.nanoTime
+    println("calc(rand.nextDouble + rand.nextDouble) : " + i)
+    (end - start) / 1e6
+    /// spark average 1568ms calc(rand.nextDouble + rand.nextDouble)
+}.sum / count
+
+(0 until count).map{
+  i => 
+    val start = System.nanoTime
+    rddSize.map( i => rand.nextDouble * rand.nextDouble )
+    val end = System.nanoTime
+    println("calc(rand.nextDouble * rand.nextDouble) : " + i)
+    (end - start) / 1e6
+    /// spark 1410
+}.sum / count
+
+
+scala -J-Xmx6g -cp C:\Users\suanec\Desktop\SEZDesign\lib\breezeLib_2.10.jar;C:\Users\suanec\Desktop\SEZDesign\lib\BAE.jar
+spark-shell --driver-memory 6g
+
+val userCount = 407261
+val itemCount = 9228
+import breezeAE._
+import breeze.linalg.{DenseVector,DenseMatrix}
+
+val rand = new scala.util.Random
+def genVec(inItemCount : Int, inSparseRate : Double = 0.00408) = new DenseVector( 
+  new Array[Double](inItemCount).map{
+  x =>
+    val r = rand.nextDouble
+    if(r < inSparseRate) r else 0d
+  })
+// val testCount = userCount / 2
+// val testCount = 50000
+val testCount = 20010//
+val times = 1
+val sr = 0.8
+// val data = (1 to testCount).map(i => genVec(itemCount,sr))
+val data = (1 to testCount).map(i => genVec(itemCount))
+
+val data = sc.parallelize((1 to testCount).map(i => genVec(itemCount,sr)))/// spark
+
+val (iw,ow) = InitWeightGaussian(Array(9228,100,9228))
+setLr(0.3)
+
+
+// val totalSize = data.map(_.data.filter(_ > 0).size).sum
+// val totalSize = data.map(_.data.filter(_ > 0).size).reduce(_ + _)
+// (1 to times).map{
+//   i => 
+//     val start = System.nanoTime
+//     data.map{
+//       line => NNBP(iw,ow,line)
+//     }//.count
+//     val end = System.nanoTime
+//     println("NNBP : " + i)
+//     (end - start) / 1e6
+//     /// spark @ 401 * 1 | 15928 = 
+//     /// scala @ 401 * 1 | 15928 = 15274 * 2.3 = 35130
+//     /// scala @ 4010 * 1 | 150978 = 146075
+//     /// scala @ 8010 * 1 | 151196 = 144365ms
+// }.sum / times
+// val data1K = data.splitAt(27)._1
+// data1K.map(_.data.filter(_ > 0).size).sum
+1,5,10,20,40,80,100,150,200,,1000
+val NKs = Array(400).map{
+  NK => 
+    var sum = 0
+    var idx = 0
+    val iter = data.toIterator
+    while( sum < 1000 * NK && iter.hasNext ){
+      idx += 1
+      sum += iter.next.data.filter(_ > 0).size
+    }
+    val dataNK = data.splitAt(idx)._1
+    data -> sum
+}
+NKs.map(_._2)
+val NKsTime = NKs.map{
+  dataNK =>
+    val start = System.nanoTime
+    dataNK._1.map{
+      line => NNBP(iw,ow,line)
+    }//.count
+    val end = System.nanoTime
+    (end - start) / 1e6
+}
+(0 until NKsTime.size).foreach{
+  i => 
+    println(NKs(i)._2 , NKsTime(i).round)
+}
+(1026,144462)
+(1029,296347)
+(5020,144931)
+(5038,296172)
+(10022,152227)
+(20016,155460)
+(40020,157843)
+(80003,151664)
+(80006,295705)
+(100012,152547)
+(100014,295216)
+(150006,152327)
+(150006,170462)
+(200038,737429)
+(200004,781431)
+(200006,1997992)
+(400024,737018)
+(400008,736924)
+
+val start = System.nanoTime
+
+data.splitAt(60000)._1.filter(_.size > 0).reduce(_ + _)
+
+val end = System.nanoTime
+(end - start) / 1e6
