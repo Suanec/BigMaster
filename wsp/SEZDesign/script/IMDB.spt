@@ -1,7 +1,7 @@
-D:
-cd D:\betn\BigMaster\wsp\SEZDesign\script
-scala -J-Xmx5g -cp C:\Users\suanec\Desktop\SEZDesign\lib\jsoup-1.9.2.jar
-object IMDBPlots {
+// D:
+// cd D:\betn\BigMaster\wsp\SEZDesign\script
+// scala -J-Xmx5g -cp C:\Users\suanec\Desktop\SEZDesign\lib\jsoup-1.9.2.jar
+object IMDBPlots extends App {
   import org.jsoup._
   import scala.collection.JavaConverters._
   import collection.mutable.Buffer
@@ -82,13 +82,24 @@ object IMDBPlots {
   def storePlot(file : String = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlots.rst""") = {
     val fs = getAllName
     val printer = new java.io.PrintWriter(file)
+    val rand = new scala.util.Random
+    val baseTime = 5000
     fs.map{
       movie =>
-        val rst = getPlotFromOMDb(movie)
-        println(movie + " : " + rst)
-        printer.write( rst + "\n" )
+        Thread.sleep((baseTime * (1 + rand.nextDouble)).toInt)
+        try { 
+          val rst = getPlotFromOMDb(movie)
+          println(movie + " : " + rst)
+          printer.write( rst + "\n" )
+          printer.flush
+          // ...
+        } catch {
+          case e: Exception => println( movie + e.toString)
+        }
     }
-    printer.flush
     printer.close
   }
 }
+
+// IMDBPlots.storePlot("""D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsShell.rst""")
+IMDBPlots.storePlot()
