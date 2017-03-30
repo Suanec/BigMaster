@@ -1,6 +1,6 @@
 // D:
 // cd D:\betn\BigMaster\wsp\SEZDesign\script
-// scala -J-Xmx5g -cp C:\Users\suanec\Desktop\SEZDesign\lib\jsoup-1.9.2.jar
+// scala -J-Xmx5g -cp "D:\betn\BigMaster\wsp\SEZDesign\libs\jsoup-1.9.2.jar;D:\betn\BigMaster\wsp\SEZDesign\libs\json4s-jackson_2.11-3.5.1.jar"
 object IMDBPlots extends App {
   import org.jsoup._
   import scala.collection.JavaConverters._
