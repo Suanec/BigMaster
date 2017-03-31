@@ -1,7 +1,7 @@
 // D:
 // cd D:\betn\BigMaster\wsp\SEZDesign\script
 // scala -J-Xmx5g -cp C:\Users\suanec\Desktop\SEZDesign\lib\jsoup-1.9.2.jar
-object IMDBPlots extends App {
+object IMDBPlotsRun extends App {
   import org.jsoup._
   import scala.collection.JavaConverters._
   import collection.mutable.Buffer
@@ -102,4 +102,4 @@ object IMDBPlots extends App {
 }
 
 // IMDBPlots.storePlot("""D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsShell.rst""")
-IMDBPlots.storePlot()
+// IMDBPlots.storePlot()
