@@ -1,6 +1,6 @@
 // D:
 // cd D:\betn\BigMaster\wsp\SEZDesign\script
-// scala -J-Xmx5g -cp "D:\betn\BigMaster\wsp\SEZDesign\libs\jsoup-1.9.2.jar;D:\betn\BigMaster\wsp\SEZDesign\libs\json4s-jackson_2.11-3.5.1.jar"
+// scala -J-Xmx5g -cp "D:\betn\BigMaster\wsp\SEZDesign\libs\jsoup-1.9.2.jar;D:\betn\BigMaster\wsp\SEZDesign\libs\json4s-jackson_2.11-3.5.1.jar" IMDB.scala 
 object IMDBPlotsRun extends App {
   import org.jsoup._
   import scala.collection.JavaConverters._
@@ -68,38 +68,58 @@ object IMDBPlotsRun extends App {
   //   getPlotsUrlByTitle(title).map(getPlotsByUrl)
   // val doc = getPlotsByTitle(rzdfTitle)
 
-  def getPlotFromOMDb(title : String) : String = {
+  def getPlotFromOMDb(movie : Array[String], _timeOut : Int = 1000*60*2 ) : String = {
     val OMDbAPIRoot = """http://www.omdbapi.com/?t="""
-    val searchTitle = title.replace(" ","+")
-    val doc = Jsoup.connect(OMDbAPIRoot + searchTitle).ignoreContentType(true).get.select("body").text
+    val years = movie(1)
+    val title = movie(2)
+    val searchTitle = title.replace("%","%25").replace(":","%3A").replace(" ","+")
+    val searchURL = s"""http://www.omdbapi.com/?t=${searchTitle}&y=${years}&plot=full"""
+    val doc = Jsoup.connect(searchURL).timeout(_timeOut).ignoreContentType(true).get.select("body").text
     doc
   }
-  def getAllName() : Array[String] = {
-    val path = """D:\betn\BigMaster\wsp\data\IMDB\PlotName"""
-    val fs = new java.io.File(path).listFiles.map(_.getName)
-    fs
-  }
-  def storePlot(file : String = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlots.rst""") = {
+  def getAllName() : Array[Array[String]] = {
+    val path = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
+    scala.io.Source.fromFile(path).getLines.
+      map(_.split(',')).toArray
+    }
+  def storePlot(file : String = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsFull.rst""") = {
     val fs = getAllName
     val printer = new java.io.PrintWriter(file)
     val rand = new scala.util.Random
-    val baseTime = 5000
-    fs.map{
-      movie =>
-        Thread.sleep((baseTime * (1 + rand.nextDouble)).toInt)
-        try { 
-          val rst = getPlotFromOMDb(movie)
-          println(movie + " : " + rst)
-          printer.write( rst + "\n" )
-          printer.flush
-          // ...
-        } catch {
-          case e: Exception => println( movie + e.toString)
+    val baseTime = 100
+    val buf = new scala.collection.mutable.ArrayBuffer[Array[String]](fs.size)
+    fs.filter(_.size > 0).map( buf += _ )
+    // (0 to 10).map{
+    var count = 11
+    var remainCount = buf.size
+    while(buf.size > 0 && count > 0) {
+      try { 
+        println( s"INFO : fs.map started! remain buf.size = ${buf.size}" )
+        if(remainCount == buf.size) count -= 1
+        else remainCount = buf.size
+
+        buf.map{
+          movie =>
+            Thread.sleep((baseTime * (1 + rand.nextDouble)).toInt)
+              println("INFO : " + movie(2) + " : Doing!")
+              val rst = getPlotFromOMDb(movie)
+              println("INFO : " + movie(2) + " : " + rst + " : Done!")
+              printer.write( rst + "\n" )
+              printer.flush
+              buf -= movie
         }
+              // ...
+      } catch {
+        case e: Exception => println( "ERROR : " + " : " + e.toString)
+      }
+      println( s"INFO : fs.map finished! remain buf.size = ${buf.size}" )
+
     }
+    // }
+    printer.flush
     printer.close
   }
 }
 
-// IMDBPlots.storePlot("""D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsShell.rst""")
+IMDBPlotsRun.storePlot("""D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsFullAll.rst""")
 // IMDBPlots.storePlot()

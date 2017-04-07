@@ -1,7 +1,7 @@
 val srcPath = """E:\222Shares\netflix"""
 val rstPath = """D:\betn\BigMaster\wsp\data\netflixRst"""
 val netflixDataFile = srcPath + "\\allData.txt"
-val movieTitleFile = """E:\222Shares\netflix\download\movie_titles.txt"""
+val movieTitleFile = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
 val movieTitleAndIdsFile = """E:\222Shares\netflix\grand_prize\grand_prize\movie_titles_with_ids.txt"""
 val IMDBPlotsPath = """D:\betn\BigMaster\wsp\data\IMDB\Plots\"""
 val urlSearchById = s"http://akas.imdb.com/title/tt${movie_id}/plotsummary"
@@ -43,7 +43,7 @@ val urlSearchById = s"http://akas.imdb.com/title/tt${movie_id}/plotsummary"
 // val demoData = scala.io.Source.fromFile(netflixDataFile).getLines.take(10000).toArray
 // val demoUserActive = demoData.map(_.split(',')).filter(_(2).toInt >= 5).groupBy(_(0)).filter(_._2.size >= 3).size
 
-
+/// 统计活跃用户
 val srcData = sc.textFile(netflixDataFile)
 val positiveRating = srcData.
   map(_.split(',').init).
@@ -66,21 +66,11 @@ new java.io.File(rstFile).
   filter(_.endsWith(".crc")).
   map( x => s"rm -f $x" ! )
 
-
+/// 测试活跃用户对应电影ID
 val mid = userActive.flatMap(_._2.map(_.head)).distinct
 val midArr = mid.map(_.toInt).collect.sorted
 
 
-val titles = sc.textFile(movieTitleFile).
-  map(_.split(',')).
-  filter(item => midArr.contains(item(0).toInt))
-
-titles.map{
-  item =>
-    val fname = IMDBPlotsPath + 
-      item(2).filterNot("""\/:*?"<>|""".contains(_))
-    new java.io.PrintWriter(fname).close
-}.count
 
 val plotRstFile = """D:\betn\BigMaster\wsp\data\IMDB\movies.csv"""
 val plotData = sc.textFile(plotRstFile).
@@ -96,3 +86,31 @@ val printer = new java.io.PrintWriter(idsRstPath)
 idsRst.map(x => printer.write(x.mkString(",") + "\n")).size
 printer.flush
 printer.close
+
+
+object NetFlixFilter extends App {
+  val srcPath = """E:\222Shares\netflix"""
+  val rstPath = """D:\betn\BigMaster\wsp\data\netflixRst"""
+  val netflixDataFile = srcPath + "\\allData.txt"
+  val movieTitleFile = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
+  val movieTitleAndIdsFile = """E:\222Shares\netflix\grand_prize\grand_prize\movie_titles_with_ids.txt"""
+  val IMDBPlotsPath = """D:\betn\BigMaster\wsp\data\IMDB\Plots\"""
+  val urlSearchById = s"http://akas.imdb.com/title/tt${movie_id}/plotsummary"
+
+  def getAliveID() : Array[Int] = {
+    val movieTitleFileData = sc.textFile("""D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt""").map(_.split(',')).collect
+    val titles = movieTitleFileData.
+      map{
+        item =>
+          item(2)//.filterNot("""\/:*?"<>|""".contains(_))
+      }
+    val titlePlotMap = imdbJsonHelper.imdbRstToArrayTitlePlot().toMap
+    val aliveTitle = titles.filter( x => map.get(x) != None )
+    val deadMovie = titles.filter(x => map.get(x) == None)
+    val titleIDMap = movieTitleFileData.map(x => x.last -> x.head).toMap
+    val aliveID = aliveTitle.filter(x => titleIDMap.get(x) != None).map(titleIDMap(_).toInt)
+    aliveID
+  }
+
+  
+}

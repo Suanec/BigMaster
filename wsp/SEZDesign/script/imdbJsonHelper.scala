@@ -1,6 +1,6 @@
 ///author := "suanec_Betn"
 ///data := 20160918
-// scala -cp "D:\betn\BigMaster\wsp\SEZDesign\libs\jsoup-1.9.2.jar;D:\betn\BigMaster\wsp\SEZDesign\libs\json4s-jackson_2.11-3.5.1.jar"
+// scala -J-Xmx5g -cp "D:\betn\BigMaster\wsp\SEZDesign\libs\jsoup-1.9.2.jar;D:\betn\BigMaster\wsp\SEZDesign\libs\json4s-jackson_2.11-3.5.1.jar"
 
 object imdbJsonHelper{
   import org.json4s._
@@ -17,36 +17,48 @@ object imdbJsonHelper{
   import java.io.{File,PrintWriter}
   import java.util.Date
   implicit val formats = Serialization.formats(ShortTypeHints(List()))
-  val filePath = """D:\betn\BigMaster\wsp\data\IMDB\plots5k.rst"""
-  /// read Config from file name
-  def readConf( _file : String = "" ) : Array[JValue] = {
+  val filePath = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlots.rst"""
+  /// read JsonRst from file name
+  def readJson( _file : String = "" ) : Array[JValue] = {
     var file = _file
-    val conf = io.Source.fromFile(file).mkString
-    conf.split('\n').map(x => parse(x))
+    val data = scala.io.Source.fromFile(file).getLines
+    data.map(x => parse(x)).toArray
   }
-  def imdbRstToPairTitilPlotsJson(file : String = filePath) : String = {
-    val data = readConf(file)
-    val t = data.head
-    val r = "Response"
-    val n = "Title"
-    val p = "Plot"
-    val contents = data.filter( row => (row \ r).extract[String].toBoolean).filter(row => (row \ p).extract[String] != "N/A")
-    val plots = contents.map{
-      row =>
-        val title = (row \ n).values.toString
-        val plots = (row \ p)
-        title -> plots
+
+  def imdbRstToArrayTitlePlot(
+    file : String = filePath) : Array[(String, 
+    org.json4s.JValue)] = {
+      val data = readJson(file)
+      val t = data.head
+      val r = "Response"
+      val n = "Title"
+      val p = "Plot"
+      val contents = data.filter( row => (row \ r).extract[String].toBoolean).filter(row => (row \ p).extract[String] != "N/A")
+      val plots = contents.map{
+        row =>
+          val title = (row \ n).values.toString
+          val plots = (row \ p)
+          title -> plots
+      }
+      plots
     }
+  def imdbRstToPairTitlePlotsJson(plots : Array[(String, 
+    org.json4s.JValue)]) : String = {
     // val plotsIter = plots.iterator
     // var rstObj = plotsIter.next ~ plotsIter.next
     // while(plotsIter.hasNext) rstObj = plotsIter.next ~ rstObj
     val (head,tail) = plots.splitAt(2)
     val rstObj = tail.foldRight(head.head ~ head.last)(_ ~ _)
-    val rstObj = tail.aggregate(head.head ~ head.last)(_ ~ _, _ ~ _)
+    // val rstObj = tail.aggregate(head.head ~ head.last)(_ ~ _, _ ~ _)
     val rstString = pretty(rstObj)
     rstString
   }
-}  
+  def imdb(file : String = filePath) : String = {
+    val arr = imdbRstToArrayTitlePlot(file)
+    val rstStr = imdbRstToPairTitlePlotsJson(arr)
+    rstStr
+  }
+}
 
 // object weiJsonHelper{
 //   implicit val formats = Serialization.formats(ShortTypeHints(List()))
