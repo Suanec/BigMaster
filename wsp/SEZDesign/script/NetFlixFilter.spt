@@ -6,43 +6,6 @@ val movieTitleAndIdsFile = """E:\222Shares\netflix\grand_prize\grand_prize\movie
 val IMDBPlotsPath = """D:\betn\BigMaster\wsp\data\IMDB\Plots\"""
 val urlSearchById = s"http://akas.imdb.com/title/tt${movie_id}/plotsummary"
 
-// val srcData = scala.io.Source.fromFile(netflixDataFile).getLines
-
-/// 把电影id当成用户id计算活跃用户了。
-// val positiveRating = srcData.map(_.split(',')).filter(_(2).toInt >= 5).toArray
-
-// val userActive = positiveRating.groupBy(_(0)).filter(_._2.size >= 3)
-
-// val positiveRating = srcData.map(_.split(',')).filter(_(2).toInt >= 5)
-
-// val buff = new scala.collection.mutable.ArrayBuffer[Array[String]]
-// val usrRst = new scala.collection.mutable.ArrayBuffer[String]
-// val printer = new java.io.PrintWriter(rstPath + "\\userActive.rst")
-// while(positiveRating.hasNext){
-//   val t = positiveRating.next 
-//   val tarr = t.init
-//   if(buff.isEmpty){
-//     buff += tarr
-//   }else if(tarr(0).toInt == buff.head(0).toInt){
-//     buff += tarr
-//   }else{
-//     printer.write(buff.map(_.mkString(",")).mkString("\n"))
-//     printer.write("\n")
-//     buff.clear
-//     buff += tarr
-//     val uid = tarr.head.toInt
-//     if(uid % 5000 == 0) println(uid)
-//   }
-// }
-//     printer.write(buff.map(_.mkString(",")).mkString("\n"))
-//     printer.write("\n")
-//     buff.clear
-//     buff += tarr
-//     val uid = tarr.head.toInt
-//     if(uid % 5000 == 0) println(uid)
-// val demoData = scala.io.Source.fromFile(netflixDataFile).getLines.take(10000).toArray
-// val demoUserActive = demoData.map(_.split(',')).filter(_(2).toInt >= 5).groupBy(_(0)).filter(_._2.size >= 3).size
-
 /// 统计活跃用户
 val srcData = sc.textFile(netflixDataFile)
 val positiveRating = srcData.
@@ -111,6 +74,42 @@ object NetFlixFilter extends App {
     val aliveID = aliveTitle.filter(x => titleIDMap.get(x) != None).map(titleIDMap(_).toInt)
     aliveID
   }
-
-  
 }
+
+
+// val srcData = scala.io.Source.fromFile(netflixDataFile).getLines
+
+/// 把电影id当成用户id计算活跃用户了。
+// val positiveRating = srcData.map(_.split(',')).filter(_(2).toInt >= 5).toArray
+
+// val userActive = positiveRating.groupBy(_(0)).filter(_._2.size >= 3)
+
+// val positiveRating = srcData.map(_.split(',')).filter(_(2).toInt >= 5)
+
+// val buff = new scala.collection.mutable.ArrayBuffer[Array[String]]
+// val usrRst = new scala.collection.mutable.ArrayBuffer[String]
+// val printer = new java.io.PrintWriter(rstPath + "\\userActive.rst")
+// while(positiveRating.hasNext){
+//   val t = positiveRating.next 
+//   val tarr = t.init
+//   if(buff.isEmpty){
+//     buff += tarr
+//   }else if(tarr(0).toInt == buff.head(0).toInt){
+//     buff += tarr
+//   }else{
+//     printer.write(buff.map(_.mkString(",")).mkString("\n"))
+//     printer.write("\n")
+//     buff.clear
+//     buff += tarr
+//     val uid = tarr.head.toInt
+//     if(uid % 5000 == 0) println(uid)
+//   }
+// }
+//     printer.write(buff.map(_.mkString(",")).mkString("\n"))
+//     printer.write("\n")
+//     buff.clear
+//     buff += tarr
+//     val uid = tarr.head.toInt
+//     if(uid % 5000 == 0) println(uid)
+// val demoData = scala.io.Source.fromFile(netflixDataFile).getLines.take(10000).toArray
+// val demoUserActive = demoData.map(_.split(',')).filter(_(2).toInt >= 5).groupBy(_(0)).filter(_._2.size >= 3).size

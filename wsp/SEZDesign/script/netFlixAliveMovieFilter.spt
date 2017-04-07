@@ -1,0 +1,38 @@
+// spark-shell --driver-memory 4g 
+object netFlixAliveMovieFilter {
+  val srcPath = """E:\222Shares\netflix"""
+  val rstPath = """D:\betn\BigMaster\wsp\data\netflixRst"""
+  val netflixDataFile = srcPath + "\\allData.txt"
+  val movieTitleFile = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
+  val IMDBPlotsPath = """D:\betn\BigMaster\wsp\data\IMDB\idPlot.rst"""
+  def getAliveMovieID(
+    aliveFile : String = IMDBPlotsPath
+    ) : Array[String] = {
+    val ids = scala.io.Source.fromFile(aliveFile)
+      .getLines.map(_.split(":::").head)
+    ids.toArray
+  }
+  def filterActiveUser( 
+    allFile : String = netflixDataFile, 
+    aliveMovieFile : String = IMDBPlotsPath
+    ) = {
+    val aliveID = getAliveMovieID(aliveMovieFile)
+    val srcData = sc.textFile(netflixDataFile)
+    /// TO DO : 
+    // val positiveRating = srcData.
+    //   map(_.split(',').init).
+    //   filter(_(2).toInt >= 5)
+    // val userActive = positiveRating.
+    //   groupBy(_(1)).
+    //   filter(_._2.size > 3)
+    // val userActiveRst = userActive.map{
+    //     values =>
+    //       val lists = values._2.map(_.mkString(","))
+    //       lists.mkString("\n")
+    //   }
+
+  }
+
+
+  
+}

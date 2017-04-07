@@ -1,0 +1,84 @@
+ // scala -J-Xmx5g -cp "D:\betn\BigMaster\wsp\SEZDesign\libs\json4s-jackson_2.11-3.5.1.jar"
+
+object nohup2IDPlots {
+  import org.json4s._
+  import org.json4s.jackson._
+  import org.json4s.jackson.JsonMethods._
+  import org.json4s.JsonDSL._
+  import org.json4s.JsonDSL.map2jvalue
+  implicit val formats = Serialization.formats(ShortTypeHints(List()))
+  val filePath = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsFullAll-2.5W.rst"""
+  val nohup25KPath = """D:\betn\BigMaster\wsp\SEZDesign\script\IMDB-nohup.out"""
+  val imdbNohupJsonFile = """D:\betn\BigMaster\wsp\data\IMDB\imdb-nohup-json-25KPlot.rst"""
+  val plotFile = """D:\betn\BigMaster\wsp\data\IMDB\idPlot.rst"""
+    // val data25K = scala.io.Source.fromFile(filePath).getLines.toArray.distinct
+  def getAllName() : Array[Array[String]] = {
+    val path = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
+    scala.io.Source.fromFile(path).getLines.
+      map(_.split(',')).toArray
+  }
+
+  def getNohupContent(file : String = nohup25KPath) : Array[String] = {
+    scala.io.Source.fromFile(file).getLines.
+      filterNot(_.endsWith("Doing!")).
+      filterNot(_.startsWith("ERROR")).
+      filterNot(_.startsWith("INFO : fs.map")).
+      filterNot(_.endsWith("(Y/N)? ")).
+      toArray
+  }
+
+  def nct2Idct(nct : Array[String] ) : Array[(Int,String)] = {
+
+    val jsonCT = nct.map(_.replace("INFO : ","").replace(" : Done!","").replaceFirst("\\{",":::{").split(":::"))
+    val movieIDMap = getAllName().map(x => x.last -> x.head).toMap
+    val idPlot = jsonCT.map{
+      line =>
+        val idValue = movieIDMap.get(line.head)
+        val id = idValue match {
+          case None => 0
+          case Some(_) => idValue.get.toInt
+        }
+        id -> line.last
+    }.filter(_._1 != 0)
+    val r = "Response"
+    idPlot.filter(
+      x => 
+        (parse(x._2) \ r).extract[String].toBoolean
+    ).sortBy(_._1)
+  }
+  
+  def nohupFile2PlotContent(srcFile : String = nohup25KPath,
+    desFile : String = plotFile) : 
+    Unit = {
+    val nct = getNohupContent(srcFile)
+    val idct = nct2Idct(nct)
+    val p = "Plot"
+    val idplots = idct.map(x => x._1 -> (parse(x._2) \ p).extract[String])
+    val printer = new java.io.PrintWriter(desFile)
+    idplots.foreach(x => printer.write(x._1 + ":::" + x._2 + "\n") )
+    printer.write("\n")
+    printer.flush
+    printer.close
+  }
+
+  // val json25K = 
+  
+}
+
+/// getDeadMovie
+// def getDeadMovie() = {
+//   val movie = getAllName
+//   val names = jsonFileRst.map(_.split(" : ").head)
+//   val deadMovie = movie.filterNot(x => names.contains(x(2)))
+//   deadMovie
+// }
+
+// def nohup25K2Json() = {
+//   val nohup25K = getNohupContent(nohup25KPath)
+//   val movieTitle = nohup25K.map(_.split('{').head.split(" : ").last)
+//   val jsonFilePrinter = new java.io.PrintWriter(imdbNohupJsonFile)
+//   val jsonFileRst = nohup25K.map(_.split(" : ")(1).replace("{"," : {").replace("[ : {","[{"))
+//   jsonFileRst.foreach(x => jsonFilePrinter.write(x + "\n"))
+//   jsonFilePrinter.flush
+//   jsonFilePrinter.close
+// }
