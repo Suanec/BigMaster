@@ -9,16 +9,25 @@ object nohup2IDPlots {
   implicit val formats = Serialization.formats(ShortTypeHints(List()))
   val filePath = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsFullAll-2.5W.rst"""
   val nohup25KPath = """D:\betn\BigMaster\wsp\SEZDesign\script\IMDB-nohup.out"""
+  val nohupPath = """D:\betn\BigMaster\wsp\SEZDesign\script\IMDB-Bufsize0-nohup.out"""
+
   val imdbNohupJsonFile = """D:\betn\BigMaster\wsp\data\IMDB\imdb-nohup-json-25KPlot.rst"""
   val plotFile = """D:\betn\BigMaster\wsp\data\IMDB\idPlot.rst"""
     // val data25K = scala.io.Source.fromFile(filePath).getLines.toArray.distinct
   def getAllName() : Array[Array[String]] = {
     val path = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
     scala.io.Source.fromFile(path).getLines.
-      map(_.split(',')).toArray
+      map{
+        x => 
+          val splits = x.split(',').splitAt(2)
+          val heads = splits._1
+          val title = splits._2.mkString(",")
+          heads :+ title
+      }.toArray
   }
 
-  def getNohupContent(file : String = nohup25KPath) : Array[String] = {
+
+  def getNohupContent(file : String = nohupPath) : Array[String] = {
     scala.io.Source.fromFile(file).getLines.
       filterNot(_.endsWith("Doing!")).
       filterNot(_.startsWith("ERROR")).
@@ -29,7 +38,24 @@ object nohup2IDPlots {
 
   def nct2Idct(nct : Array[String] ) : Array[(Int,String)] = {
 
-    val jsonCT = nct.map(_.replace("INFO : ","").replace(" : Done!","").replaceFirst("\\{",":::{").split(":::"))
+    val r = "Response"
+    val ti = "Title"  
+    val jsonCT = nct.
+      map(_.replace("INFO : ","").
+      replace(" : Done!","").
+      replaceFirst("\\{",":::{").split(":::")).
+      filter{
+        line => 
+          // println(ti + ":" + line.last)
+          val jvalue = parse(line.last)
+          val isResponse = (jvalue \ r).extract[String].toBoolean
+          val isSameTitle = isResponse match {
+            case true => line.head.equals((jvalue \ ti).extract[String])
+            case false => false
+          }
+          println(s"isResponse:${isResponse},isSameTitle:${isSameTitle},And:${isResponse&&isSameTitle}")
+          isResponse && isSameTitle
+      }
     val movieIDMap = getAllName().map(x => x.last -> x.head).toMap
     val idPlot = jsonCT.map{
       line =>
@@ -39,15 +65,13 @@ object nohup2IDPlots {
           case Some(_) => idValue.get.toInt
         }
         id -> line.last
-    }.filter(_._1 != 0)
-    val r = "Response"
-    idPlot.filter(
-      x => 
-        (parse(x._2) \ r).extract[String].toBoolean
-    ).sortBy(_._1)
+    }.
+    filter(_._1 != 0).
+    sortBy(_._1)
+    idPlot
   }
   
-  def nohupFile2PlotContent(srcFile : String = nohup25KPath,
+  def nohupFile2PlotContent(srcFile : String = nohupPath,
     desFile : String = plotFile) : 
     Unit = {
     val nct = getNohupContent(srcFile)

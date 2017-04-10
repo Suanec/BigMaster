@@ -1,6 +1,7 @@
 // spark-shell --driver-memory 4g 
 object netFlixAliveMovieFilter {
   val srcPath = """E:\222Shares\netflix"""
+  val destPath = srcPath + """\destPath"""
   val rstPath = """D:\betn\BigMaster\wsp\data\netflixRst"""
   val netflixDataFile = srcPath + "\\allData.txt"
   val movieTitleFile = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
@@ -12,27 +13,38 @@ object netFlixAliveMovieFilter {
       .getLines.map(_.split(":::").head)
     ids.toArray
   }
+  def activeRating2Libsvm(rating : (String, Iterable[Array[String]])) : String = {
+    val uid = rating._1
+    val mid = rating._2.map(_.head.toInt).sorted
+    val rst = uid + ":" + mid.mkString(",")
+    rst
+  }
   def filterActiveUser( 
     allFile : String = netflixDataFile, 
     aliveMovieFile : String = IMDBPlotsPath
     ) = {
     val aliveID = getAliveMovieID(aliveMovieFile)
-    val srcData = sc.textFile(netflixDataFile)
+    val srcData = sc.textFile(allFile)
+    // t.head 
+    // mid uid rate date 
+    // String = 1,1488844,3,2005-09-06
     /// TO DO : 
-    // val positiveRating = srcData.
-    //   map(_.split(',').init).
-    //   filter(_(2).toInt >= 5)
-    // val userActive = positiveRating.
-    //   groupBy(_(1)).
-    //   filter(_._2.size > 3)
-    // val userActiveRst = userActive.map{
-    //     values =>
-    //       val lists = values._2.map(_.mkString(","))
-    //       lists.mkString("\n")
-    //   }
+    val rateTuple = srcData.map(_.split(',').init)
+    val aliveRating = rateTuple.filter(x => aliveID.contains(x.head))
+    val positiveRating = aliveRating.filter(_(2).toInt >= 5)
 
+    // To get the data groupBy uid 
+    // such as 
+    val userActive = positiveRating.groupBy(_(1)).filter(_._2.size >= 3)
+    val rst = userActive.map(activeRating2Libsvm(_))
+    rst
   }
-
-
-  
+  def netFlixAliveMovieFilter(
+    aliveMovieFile : String = IMDBPlotsPath,
+    rph : String = rstPath, 
+    allFile : String = netflixDataFile) = {
+    val uac = filterActiveUser(allFile,aliveMovieFile)
+    uac.saveAsTextFile(rph)
+  }
 }
+
