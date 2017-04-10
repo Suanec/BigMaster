@@ -80,8 +80,15 @@ object IMDBPlotsRun extends App {
   def getAllName() : Array[Array[String]] = {
     val path = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
     scala.io.Source.fromFile(path).getLines.
-      map(_.split(',')).toArray
-    }
+      map{
+        x => 
+          val splits = x.split(',').splitAt(2)
+          val heads = splits._1
+          val title = splits._2.mkString(",")
+          heads :+ title
+      }.toArray
+  }
+
   def storePlot(file : String = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsFull.rst""") = {
     val fs = getAllName
     val printer = new java.io.PrintWriter(file)
