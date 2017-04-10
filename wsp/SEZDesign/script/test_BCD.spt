@@ -1,0 +1,21 @@
+import breeze.linalg.{DenseMatrix => BDM}
+type SDM = BDM[Double]
+
+val num_v = 100
+val num_u = 100
+val num_iter = 10
+val K = 4
+val lambda_u = 100
+val lambda_v = 0.1
+val a = 1
+val b = 0.01
+val a_m_b = a - b
+val theta = BDM.rand(K,num_v).t
+val V = BDM.rand(K,num_v).t
+val U = BDM.rand(K,num_u).t 
+val R = BDM.rand(num_u,num_v)
+R.map(x => if(x < 0.9) 0 else x )
+(1 to num_iter).map{
+  i =>
+    U,V = BCD_one(R, U, V, theta, lambda_u, lambda_v)
+}
