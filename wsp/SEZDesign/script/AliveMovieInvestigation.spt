@@ -1,0 +1,53 @@
+object AliveMovieInvestigation {
+  import org.json4s._
+  import org.json4s.jackson._
+  import org.json4s.jackson.JsonMethods._
+  import org.json4s.JsonDSL._
+  import org.json4s.JsonDSL.map2jvalue
+  // or
+  //import org.json4s.JsonDSL.WithDouble._
+  //import org.json4s.JsonDSL.WithBigDecimal._
+  //import scala.io.Source
+  //import scala.collection.JavaConverters._
+  //import scala.collection.mutable.Buffer
+  import java.io.{File,PrintWriter}
+  import java.util.Date
+  implicit val formats = Serialization.formats(ShortTypeHints(List()))
+  val filePath = """D:\betn\BigMaster\wsp\SEZDesign\script\IMDB-Bufsize0-nohup.out"""
+  def getAllName() : Array[Array[String]] = {
+    val path = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
+    scala.io.Source.fromFile(path).getLines.
+      map{
+        x => 
+          val splits = x.split(',').splitAt(2)
+          val heads = splits._1
+          val title = splits._2.mkString(",")
+          heads :+ title
+      }.toArray
+  }
+
+  def getNohupContent(file : String = filePath) : Array[(String,JValue)] = {
+    scala.io.Source.fromFile(file).getLines.
+      filterNot(_.endsWith("Doing!")).
+      filterNot(_.startsWith("ERROR")).
+      filterNot(_.startsWith("INFO : fs.map")).
+      filterNot(_.endsWith("(Y/N)? ")).
+      map(_.replace("INFO : ","").
+      replace(" : Done!","").
+      replaceFirst("\\{",":::{").
+      split(":::")).
+      map(x => x.head -> parse(x.last)).
+      toArray
+  }
+
+  val ti = "Title"  
+  val r = "Response"
+  val p = "Plot"
+  val nct = getNohupContent()
+  val idPlot = nct.
+    filter(x => (x._2 \ r).extract[String].toBoolean).
+    filter(x => x._1.equals((x._2 \ ti).extract[String]))
+
+    
+}
+
