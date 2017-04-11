@@ -9,7 +9,7 @@ object nohup2IDPlots {
   implicit val formats = Serialization.formats(ShortTypeHints(List()))
   val filePath = """D:\betn\BigMaster\wsp\data\IMDB\netFlixPlotsFullAll-2.5W.rst"""
   val nohup25KPath = """D:\betn\BigMaster\wsp\SEZDesign\script\IMDB-nohup.out"""
-  val nohupPath = """D:\betn\BigMaster\wsp\SEZDesign\script\IMDB-Bufsize0-nohup.out"""
+  val nohupPath = """D:\betn\BigMaster\wsp\SEZDesign\script\IMDB-nohup.out"""
 
   val imdbNohupJsonFile = """D:\betn\BigMaster\wsp\data\IMDB\imdb-nohup-json-25KPlot.rst"""
   val plotFile = """D:\betn\BigMaster\wsp\data\IMDB\idPlot.rst"""
@@ -26,7 +26,6 @@ object nohup2IDPlots {
       }.toArray
   }
 
-
   def getNohupContent(file : String = nohupPath) : Array[String] = {
     scala.io.Source.fromFile(file).getLines.
       filterNot(_.endsWith("Doing!")).
@@ -37,23 +36,22 @@ object nohup2IDPlots {
   }
 
   def nct2Idct(nct : Array[String] ) : Array[(Int,String)] = {
-
     val r = "Response"
     val ti = "Title"  
     val jsonCT = nct.
       map(_.replace("INFO : ","").
       replace(" : Done!","").
-      replaceFirst("\\{",":::{").split(":::")).
+      replaceFirst("\\{",":::{").split(" : :::")).
       filter{
         line => 
           // println(ti + ":" + line.last)
           val jvalue = parse(line.last)
           val isResponse = (jvalue \ r).extract[String].toBoolean
           val isSameTitle = isResponse match {
-            case true => line.head.equals((jvalue \ ti).extract[String])
+            case true => line.head.split(" : ").head.equals((jvalue \ ti).extract[String])
             case false => false
           }
-          println(s"isResponse:${isResponse},isSameTitle:${isSameTitle},And:${isResponse&&isSameTitle}")
+          // println(s"isResponse:${isResponse},isSameTitle:${isSameTitle},And:${isResponse&&isSameTitle}")
           isResponse && isSameTitle
       }
     val movieIDMap = getAllName().map(x => x.last -> x.head).toMap
@@ -71,38 +69,78 @@ object nohup2IDPlots {
     idPlot
   }
   
-  def nohupFile2PlotContent(srcFile : String = nohupPath,
-    desFile : String = plotFile) : 
-    Unit = {
+  def nohup2PlotContent(srcFile : String = nohupPath) : 
+    Array[(Int, String)] = {
     val nct = getNohupContent(srcFile)
     val idct = nct2Idct(nct)
     val p = "Plot"
-    val idplots = idct.map(x => x._1 -> (parse(x._2) \ p).extract[String])
+    val idplots = idct.map(x => x._1 -> (parse(x._2) \ p).extract[String]).filter(x => x._2 != "N/A")
+    println(s"idplots.size : ${idplots.size}")
+    idplots
+  }
+  def randPerm( _arr : Array[Int] ) : Array[Int] = {
+    var idx : Int = 0
+    var tmp : Int = _arr.head
+    val size = _arr.size
+    val rand = new scala.util.Random(System.currentTimeMillis())
+    _arr.indices.map{
+      i =>
+        idx = scala.math.abs(rand.nextInt % (size-i)) + i
+        require(idx <= size && idx >= 0,idx.toString + "," + i.toString + "," + size.toString)
+        tmp =  _arr(idx)
+        _arr(idx) = _arr(i)
+        _arr(i) = tmp
+    }
+    _arr
+  }
+  def samplePlotContent(
+    idplots : Array[(Int, String)], 
+    sampleSize : Int) : 
+    Array[(Int, String)] = {
+    val rand = new scala.util.Random(System.currentTimeMillis)
+    randPerm(idplots.indices.toArray).splitAt(sampleSize)._1.map{
+      i => idplots(i)
+    }.toArray
+  }
+  def samplePlotContent(
+    idplots : Array[(Int, String)], 
+    sampleRates : Double) : 
+    Array[(Int, String)] = {
+    val sampleSize = (idplots.size * sampleRates).toInt
+    samplePlotContent(idplots,sampleSize)
+  }
+  def savePlotContent(
+    idplots : Array[(Int,String)], 
+    desFile : String = plotFile) : Unit = {
     val printer = new java.io.PrintWriter(desFile)
     idplots.foreach(x => printer.write(x._1 + ":::" + x._2 + "\n") )
-    printer.write("\n")
     printer.flush
     printer.close
   }
-
+  def savePlot(
+    srcFile : String = nohupPath, 
+    desFile : String = plotFile) : Unit = {
+    savePlotContent(nohup2PlotContent(srcFile),desFile)
+  }
+    
+  def saveSampleRatePlot(
+    sampleRates : Double = .7, 
+    srcFile : String = nohupPath, 
+    desFile : String = plotFile ) : Unit = {
+    val idplots = nohup2PlotContent(srcFile)
+    val subPlots = samplePlotContent(idplots,sampleRates)
+    savePlotContent(subPlots,desFile)
+  } 
+  def saveSampleSizePlot(
+    sampleSize : Int = 1024, 
+    srcFile : String = nohupPath, 
+    desFile : String = plotFile ) : Unit = {
+    val idplots = nohup2PlotContent(srcFile)
+    val subPlots = samplePlotContent(idplots,sampleSize)
+    println(s"subPlots.size : ${subPlots.size}")
+    savePlotContent(subPlots,desFile)
+  }
+    
   // val json25K = 
   
 }
-
-/// getDeadMovie
-// def getDeadMovie() = {
-//   val movie = getAllName
-//   val names = jsonFileRst.map(_.split(" : ").head)
-//   val deadMovie = movie.filterNot(x => names.contains(x(2)))
-//   deadMovie
-// }
-
-// def nohup25K2Json() = {
-//   val nohup25K = getNohupContent(nohup25KPath)
-//   val movieTitle = nohup25K.map(_.split('{').head.split(" : ").last)
-//   val jsonFilePrinter = new java.io.PrintWriter(imdbNohupJsonFile)
-//   val jsonFileRst = nohup25K.map(_.split(" : ")(1).replace("{"," : {").replace("[ : {","[{"))
-//   jsonFileRst.foreach(x => jsonFilePrinter.write(x + "\n"))
-//   jsonFilePrinter.flush
-//   jsonFilePrinter.close
-// }
