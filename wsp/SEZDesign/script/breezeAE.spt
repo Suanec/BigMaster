@@ -425,3 +425,14 @@ val dec = eggSparse.map{
     (line -> eo)
 }.foreach(println)
 
+/// draw loss
+import java.io.FileOutputStream
+import scala.Console
+Console.setOut(new java.io.FileOutputStream("""C:\Users\suanec\Desktop\shell-out"""))
+(0 until 50).map{
+  i => 
+    println(s"epoch : ${i}")
+    eggCols.map{
+      line => NNBP(iw,ow,line)
+    }
+}
