@@ -1,11 +1,12 @@
 // spark-shell --driver-memory 4g 
-object netFlixAliveMovieFilter {
+object netFlixAliveMovieFilter extends Serializable{
   val srcPath = """E:\222Shares\netflix"""
   val destPath = srcPath + """\destPath"""
   val rstPath = """D:\betn\BigMaster\wsp\data\netflixRst"""
   val netflixDataFile = srcPath + "\\allData.txt"
   val movieTitleFile = """D:\betn\BigMaster\wsp\data\netflixRst\movie_titles.txt"""
-  val IMDBPlotsPath = """D:\betn\BigMaster\wsp\data\IMDB\idPlot.rst"""
+  val IMDBPlotsPath = """D:\betn\BigMaster\wsp\data\IMDB\idPlot-9K.rst"""
+  @transient
   def getAliveMovieID(
     aliveFile : String = IMDBPlotsPath
     ) : Array[String] = {
@@ -13,12 +14,14 @@ object netFlixAliveMovieFilter {
       .getLines.map(_.split(":::").head)
     ids.toArray
   }
-  def activeRating2Libsvm(rating : (String, Iterable[Array[String]])) : String = {
+  @transient
+  def activeRating2Str(rating : (String, Iterable[Array[String]])) : String = {
     val uid = rating._1
-    val mid = rating._2.map(_.head.toInt).sorted
+    val mid = rating._2.map(_.head.toInt)//.sorted
     val rst = uid + ":" + mid.mkString(",")
     rst
   }
+  @transient
   def filterActiveUser( 
     allFile : String = netflixDataFile, 
     aliveMovieFile : String = IMDBPlotsPath
@@ -36,15 +39,17 @@ object netFlixAliveMovieFilter {
     // To get the data groupBy uid 
     // such as 
     val userActive = positiveRating.groupBy(_(1)).filter(_._2.size >= 3)
-    val rst = userActive.map(activeRating2Libsvm(_))
+    val rst = userActive.map(activeRating2Str(_))
     rst
   }
+  @transient
   def netFlixAliveMovieFilter(
     aliveMovieFile : String = IMDBPlotsPath,
-    rph : String = rstPath, 
+    rph : String = destPath, 
     allFile : String = netflixDataFile) = {
     val uac = filterActiveUser(allFile,aliveMovieFile)
-    uac.saveAsTextFile(rph)
+    uac.saveAsTextFile(rph + "\\usersActive")
+    uac
   }
 }
 
