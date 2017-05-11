@@ -1,6 +1,10 @@
+
 import breeze.linalg.{DenseMatrix => BDM}
 import breeze.numerics.pow
 type SDM = BDM[Double]
+def shape( m : BDM[_] ) = m.rows -> m.cols
+
+/// val R = BDM.rand[Double](10,7).map( x => if(x >= 0.9) 1d else 0d)
 def BCD_one(
   R : SDM,
   U : SDM,
@@ -23,12 +27,18 @@ def BCD_one(
   val aMB = a - b
   val IU = BDM.eye[Double](K)*lambda_u
   val IV = BDM.eye[Double](K)*lambda_v
-  val C = (BDM.ones[Double](numU,numV) * b).map(x => if(x > 0) a else x)
+
+  /// confidence parameter
+  val valueR = R.map(x => if(x > 0) a else 0d)
+  val emptyR = R.map(x => if(x > 0) 0 else x * b )
+  val C = valueR + emptyR
+  
   (0 until numIter).map{
     it =>
       val uSquare = UT * U * b
       (0 until numV).map{
-        j =>
+        j =>  
+          val idx = 
 
       }
   }
