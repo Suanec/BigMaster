@@ -1,0 +1,17 @@
+import org.apache.spark.mllib.linalg.Vector
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
+val rows: RDD[Vector] = ... // an RDD of local vectors
+// Create a RowMatrix from an RDD[Vector].
+val mat: RowMatrix = new RowMatrix(rows)
+
+// Get its size.
+val m = mat.numRows()
+val n = mat.numCols()
+// QR decomposition 
+val qrResult = mat.tallSkinnyQR(true)
+
+
+
+
+// CoordinateMatrix
+// A CoordinateMatrix is a distributed matrix backed by an RDD of its entries. Each entry is a tuple of (i: Long, j: Long, value: Double), where i is the row index, j is the column index, and value is the entry value. A CoordinateMatrix should be used only when both dimensions of the matrix are huge and the matrix is very sparse.
