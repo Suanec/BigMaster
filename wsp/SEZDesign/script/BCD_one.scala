@@ -79,11 +79,11 @@ object BCD_one {
     }
     val loss = getLoss match {
       case true => {
-        // E := UT.t * VT - R 
-        // val error = (C :* pow(E,2)).sum / 2d
-        // val regLossV = pow((thetaT - VT),2).sum / 2d
-        // val regLossU = pow(UT,2).sum / 2d
-        // error + lambda_v * regLossV + lambda_u * regLossU
+        E := UT.t * VT - R 
+        val error = (C :* pow(E,2)).sum / 2d
+        val regLossV = pow((thetaT - VT),2).sum / 2d
+        val regLossU = pow(UT,2).sum / 2d
+        error + lambda_v * regLossV + lambda_u * regLossU
       }
       case false => 0
     }
